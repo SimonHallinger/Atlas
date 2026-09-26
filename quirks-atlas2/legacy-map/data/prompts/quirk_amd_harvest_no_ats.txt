@@ -1,0 +1,540 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_amd_harvest_no_ats",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 5660,
+  "end": 5672
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x98e4",
+   "class": null,
+   "line": 5675,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x6900",
+   "class": null,
+   "line": 5677,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x7310",
+   "class": null,
+   "line": 5679,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x7312",
+   "class": null,
+   "line": 5680,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x7318",
+   "class": null,
+   "line": 5681,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x7319",
+   "class": null,
+   "line": 5682,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x731a",
+   "class": null,
+   "line": 5683,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x731b",
+   "class": null,
+   "line": 5684,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x731e",
+   "class": null,
+   "line": 5685,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x731f",
+   "class": null,
+   "line": 5686,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x7340",
+   "class": null,
+   "line": 5688,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x7341",
+   "class": null,
+   "line": 5689,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x7347",
+   "class": null,
+   "line": 5690,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x734f",
+   "class": null,
+   "line": 5691,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "0x15d8",
+   "class": null,
+   "line": 5693,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 15,
+ "calls_local": [
+  "quirk_no_ats"
+ ],
+ "calls_external": [],
+ "called_by": [],
+ "config_access": [],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [
+  "device",
+  "revision",
+  "subsystem_device",
+  "subsystem_vendor"
+ ],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 8,
+  "first": "2017-07-11",
+  "last": "2023-09-08",
+  "origin_pre_git": false,
+  "n_stable": 3,
+  "fixes_chain": [
+   {
+    "by": "9b44b0b09dec",
+    "fixes": "b1516a14657a (\"iommu/amd: Implement flush queue\")",
+    "fixes_hash": "b1516a14657a",
+    "in_this_function": false
+   }
+  ]
+ }
+}
+
+SOURCE:
+```c
+5660: static void quirk_amd_harvest_no_ats(struct pci_dev *pdev)
+5661: {
+5662: 	if (pdev->device == 0x15d8) {
+5663: 		if (pdev->revision == 0xcf &&
+5664: 		    pdev->subsystem_vendor == 0xea50 &&
+5665: 		    (pdev->subsystem_device == 0xce19 ||
+5666: 		     pdev->subsystem_device == 0xcc10 ||
+5667: 		     pdev->subsystem_device == 0xcc08))
+5668: 			quirk_no_ats(pdev);
+5669: 	} else {
+5670: 		quirk_no_ats(pdev);
+5671: 	}
+5672: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L5655-L5659",
+  "excerpt": "Some devices require additional driver setup to enable ATS.  Don't use\nATS for those devices as ATS will be enabled before the driver has had a\nchance to load and configure the device.",
+  "role": "doc"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L5674-L5674",
+  "excerpt": "AMD Stoney platform GPU",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L5676-L5676",
+  "excerpt": "AMD Iceland dGPU",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L5678-L5678",
+  "excerpt": "AMD Navi10 dGPU",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L5687-L5687",
+  "excerpt": "AMD Navi14 dGPU",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L5692-L5692",
+  "excerpt": "AMD Raven platform iGPU",
+  "role": "registration_site"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5675",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x98e4, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5677",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x6900, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5679",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x7310, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5680",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x7312, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5681",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x7318, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5682",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x7319, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5683",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x731a, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5684",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x731b, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5685",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x731e, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5686",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x731f, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5688",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x7340, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5689",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x7341, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5690",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x7347, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5691",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x734f, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5693",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, 0x15d8, quirk_amd_harvest_no_ats);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:9b44b0b09dec",
+  "excerpt": "PCI: Mark AMD Stoney GPU ATS as broken",
+  "date": "2017-07-11",
+  "author": "Joerg Roedel",
+  "trailers": {
+   "fixes": [
+    "b1516a14657a (\"iommu/amd: Implement flush queue\")"
+   ],
+   "bug_refs": [
+    "https://bugzilla.redhat.com/show_bug.cgi?id=1409201"
+   ]
+  },
+  "message": "PCI: Mark AMD Stoney GPU ATS as broken\n\nATS is broken on this hardware and causes IOMMU stalls and system failure.\nDisable ATS on these devices to make them usable again with IOMMU enabled.\n\nNote that the commit in the Fixes tag is not buggy; it just uncovers the\nproblem in the hardware by increasing the ATS flush rate."
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.redhat.com/show_bug.cgi?id=1409201",
+  "excerpt": "(bug tracker entry referenced by commit 9b44b0b09dec)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7506dc798993",
+  "excerpt": "PCI: Add wrappers for dev_printk()",
+  "date": "2018-01-18",
+  "author": "Frederick Lawler",
+  "cleanup": true,
+  "message": "PCI: Add wrappers for dev_printk()\n\nAdd PCI-specific dev_printk() wrappers and use them to simplify the code\nslightly.  No functional change intended.\n\n[bhelgaas: squash into one patch]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:5e89cd303e3a",
+  "excerpt": "PCI: Mark AMD Navi14 GPU rev 0xc5 ATS as broken",
+  "date": "2020-01-14",
+  "author": "Alex Deucher",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20200114205523.1054271-3-alexander.deucher@amd.com"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Mark AMD Navi14 GPU rev 0xc5 ATS as broken\n\nTo account for parts of the chip that are \"harvested\" (disabled) due to\nsilicon flaws, caches on some AMD GPUs must be initialized before ATS is\nenabled.\n\nATS is normally enabled by the IOMMU driver before the GPU driver loads, so\nthis cache initialization would have to be done in a quirk, but that's too\ncomplex to be practical.\n\nFor Navi14 (device ID 0x7340), this initialization is done by the VBIOS,\nbut apparently some boards went to production with an older VBIOS that\ndoesn't do it.  Disable ATS for those boards.\n\nBug: https://gitlab.freedesktop.org/drm/amd/issues/1015\nSee-also: d28ca864c493 (\"PCI: Mark AMD Stoney Radeon R7 GPU ATS as broken\")\nSee-also: 9b44b0b09dec (\"PCI: Mark AMD Stoney GPU ATS as broken\")\n[bhelgaas: squash into one patch, simplify slightly, commit log]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20200114205523.1054271-3-alexander.deucher@amd.com",
+  "excerpt": "(linked from commit 5e89cd303e3a; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:45beb31d3afb",
+  "excerpt": "PCI: Mark AMD Navi10 GPU rev 0x00 ATS as broken",
+  "date": "2020-07-28",
+  "author": "Kai-Heng Feng",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20200728104554.28927-1-kai.heng.feng@canonical.com"
+   ],
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=208725"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Mark AMD Navi10 GPU rev 0x00 ATS as broken\n\nWe are seeing AMD Radeon Pro W5700 doesn't work when IOMMU is enabled:\n\n  iommu ivhd0: AMD-Vi: Event logged [IOTLB_INV_TIMEOUT device=63:00.0 address=0x42b5b01a0]\n  iommu ivhd0: AMD-Vi: Event logged [IOTLB_INV_TIMEOUT device=63:00.0 address=0x42b5b01c0]\n\nThe error also makes graphics driver fail to probe the device.\n\nIt appears to be the same issue as commit 5e89cd303e3a (\"PCI: Mark AMD\nNavi14 GPU rev 0xc5 ATS as broken\") addresses, and indeed the same ATS\nquirk can workaround the issue.\n\nSee-also: 5e89cd303e3a (\"PCI: Mark AMD Navi14 GPU rev 0xc5 ATS as broken\")\nSee-also: d28ca864c493 (\"PCI: Mark AMD Stoney Radeon R7 GPU ATS as broken\")\nSee-also: 9b44b0b09dec (\"PCI: Mark AMD Stoney GPU ATS as broken\")"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20200728104554.28927-1-kai.heng.feng@canonical.com",
+  "excerpt": "(linked from commit 45beb31d3afb; thread not retrieved)"
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=208725",
+  "excerpt": "(bug tracker entry referenced by commit 45beb31d3afb)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:a2da5d8cc0b0",
+  "excerpt": "PCI: Mark AMD Raven iGPU ATS as broken in some platforms",
+  "date": "2020-12-10",
+  "author": "Alex Deucher",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/linux-iommu/MWHPR10MB1310CDB6829DDCF5EA84A14689150@MWHPR10MB1310.namprd10.prod.outlook.com/",
+    "https://lore.kernel.org/r/MWHPR10MB131082779A86BE4CCCF190B789CB0@MWHPR10MB1310.namprd10.prod.outlook.com"
+   ],
+   "reported_by": [
+    "Edgar Merger <Edgar.Merger@emerson.com>"
+   ]
+  },
+  "message": "PCI: Mark AMD Raven iGPU ATS as broken in some platforms\n\nEdgar reported [1] AMD Raven iGPU errors on several of his systems.  There\nis no root cause.  Turn off ATS on these systems to avoid the issue.\n\n[1] https://lore.kernel.org/linux-iommu/MWHPR10MB1310CDB6829DDCF5EA84A14689150@MWHPR10MB1310.namprd10.prod.outlook.com/\n\n[bhelgaas: commit log]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/linux-iommu/MWHPR10MB1310CDB6829DDCF5EA84A14689150@MWHPR10MB1310.namprd10.prod.outlook.com/",
+  "excerpt": "(linked from commit a2da5d8cc0b0; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/MWHPR10MB131082779A86BE4CCCF190B789CB0@MWHPR10MB1310.namprd10.prod.outlook.com",
+  "excerpt": "(linked from commit a2da5d8cc0b0; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e8946a53e2a6",
+  "excerpt": "PCI: Mark AMD Navi14 GPU ATS as broken",
+  "date": "2021-06-02",
+  "author": "Evan Quan",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20210602021255.939090-1-evan.quan@amd.com"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Mark AMD Navi14 GPU ATS as broken\n\nObserved unexpected GPU hang during runpm stress test on 0x7341 rev 0x00.\nFurther debugging shows broken ATS is related.\n\nDisable ATS on this part.  Similar issues on other devices:\n\n  a2da5d8cc0b0 (\"PCI: Mark AMD Raven iGPU ATS as broken in some platforms\")\n  45beb31d3afb (\"PCI: Mark AMD Navi10 GPU rev 0x00 ATS as broken\")\n  5e89cd303e3a (\"PCI: Mark AMD Navi14 GPU rev 0xc5 ATS as broken\")"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210602021255.939090-1-evan.quan@amd.com",
+  "excerpt": "(linked from commit e8946a53e2a6; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3f1271b54edc",
+  "excerpt": "PCI: Mark all AMD Navi10 and Navi14 GPU ATS as broken",
+  "date": "2022-02-22",
+  "author": "Alex Deucher",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20220222160801.841643-1-alexander.deucher@amd.com"
+   ]
+  },
+  "message": "PCI: Mark all AMD Navi10 and Navi14 GPU ATS as broken\n\nThere are enough VBIOS escapes without the proper workaround that some\nusers still hit this.  Microsoft never productized ATS on Windows so OEM\nplatforms that were Windows-only didn't always validate ATS.\n\nThe advantages of ATS are not worth it compared to the potential\ninstabilities on harvested boards.  Disable ATS on all Navi10 and Navi14\nboards.\n\nSymptoms include:\n\n  amdgpu 0000:07:00.0: AMD-Vi: Event logged [IO_PAGE_FAULT domain=0x0007 address=0xffffc02000 flags=0x0000]\n  AMD-Vi: Event logged [IO_PAGE_FAULT device=07:00.0 domain=0x0007 address=0xffffc02000 flags=0x0000]\n  [drm:amdgpu_job_timedout [amdgpu]] *ERROR* ring sdma0 timeout, signaled seq=6047, emitted seq=6049\n  amdgpu 0000:07:00.0: amdgpu: GPU reset begin!\n  amdgpu 0000:07:00.0: amdgpu: GPU reset succeeded, trying to resume\n  amdgpu 0000:07:00.0: [drm:amdgpu_ring_test_helper [amdgpu]] *ERROR* ring sdma0 test failed (-110)\n  [drm:amdgpu_device_ip_resume_phase2 [amdgpu]] *ERROR* resume of IP block <sdma_v4_0> failed -110\n  amdgpu 0000:07:00.0: amdgpu: GPU reset(1) failed\n\nRelated commits:\n\n  e8946a53e2a6 (\"PCI: Mark AMD Navi14 GPU ATS as broken\")\n  a2da5d8cc0b0 (\"PCI: Mark AMD Raven iGPU ATS as broken in some platforms\")\n  45beb31d3afb (\"PCI: Mark AMD Navi10 GPU rev 0x00 ATS as broken\")\n  5e89cd303e3a (\"PCI: Mark AMD Navi14 GPU rev 0xc5 ATS as broken\")\n  d28ca864c493 (\"PCI: Mark AMD Stoney Radeon R7 GPU ATS as broken\")\n  9b44b0b09dec (\"PCI: Mark AMD Stoney GPU ATS as broken\")\n\n[bhelgaas: add symptoms and related commits]\nBug: https://gitlab.freedesktop.org/drm/amd/-/issues/1760"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20220222160801.841643-1-alexander.deucher@amd.com",
+  "excerpt": "(linked from commit 3f1271b54edc; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f18b1137d38c",
+  "excerpt": "PCI: Extract ATS disabling to a helper function",
+  "date": "2023-09-08",
+  "author": "Bartosz Pawlowski",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20230908143606.685930-2-bartosz.pawlowski@intel.com"
+   ]
+  },
+  "message": "PCI: Extract ATS disabling to a helper function\n\nIntroduce quirk_no_ats() helper function to provide a standard way to\ndisable ATS capability in PCI quirks."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20230908143606.685930-2-bartosz.pawlowski@intel.com",
+  "excerpt": "(linked from commit f18b1137d38c; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

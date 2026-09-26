@@ -1,0 +1,137 @@
+{
+ "function": "quirk_e100_interrupt",
+ "one_line_intent": "Disable interrupts on Intel e100 NICs left enabled by firmware, before any driver binds.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Firmware hands off e100 with interrupts enabled; received packets cause an interrupt storm on shared lines before the driver attaches.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L2447-L2453",
+      "excerpt": "Some firmware hands off the e100 with interrupts enabled",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "PCI ID list copied from the e100 driver.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L2428",
+      "excerpt": "PCI IDs taken from drivers/net/e100.c",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Must check D0 first: MMIO to a device not in D0 causes master-abort machine checks.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e64aeccbeca1",
+      "excerpt": "If it's not, it won't respond to MMIO accesses and we end up with master-abort machine checks on some platforms.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Firmware handoff bug.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:16a74744231e",
+      "excerpt": "e100 can be pulling on a shared interrupt line when another device (eg. USB) loads",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Registered for all Intel Ethernet-class devices then filtered by ID list inside.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2484",
+      "excerpt": "DECLARE_PCI_FIXUP_CLASS_FINAL(PCI_VENDOR_ID_INTEL, PCI_ANY_ID,",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Uses pci_resource_start rather than raw BAR values - raw BARs crashed non-x86 architectures.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:1bef7dc00caa",
+      "excerpt": "this quirk is doing an ioremap directly on a PCI BAR value, which isn't legal",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Interrupt storm disables a shared IRQ line (e.g. USB).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:16a74744231e",
+      "excerpt": "causing the interrupt to scream and get disabled.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Two bug fixes in 2007 show that code touching MMIO in the early fixup path breaks on other architectures and power states.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:1bef7dc00caa",
+      "excerpt": "Linas reported me that some machines were crashing at boot in quirk_e100_interrupt.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

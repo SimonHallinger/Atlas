@@ -1,0 +1,734 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_dma_func1_alias",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 4305,
+  "end": 4309
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9120",
+   "class": null,
+   "line": 4317,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9123",
+   "class": null,
+   "line": 4319,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9125",
+   "class": null,
+   "line": 4322,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9128",
+   "class": null,
+   "line": 4324,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9130",
+   "class": null,
+   "line": 4327,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9170",
+   "class": null,
+   "line": 4329,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9172",
+   "class": null,
+   "line": 4332,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x917a",
+   "class": null,
+   "line": 4335,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9182",
+   "class": null,
+   "line": 4338,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9183",
+   "class": null,
+   "line": 4341,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x91a0",
+   "class": null,
+   "line": 4344,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9215",
+   "class": null,
+   "line": 4347,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9220",
+   "class": null,
+   "line": 4350,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9230",
+   "class": null,
+   "line": 4353,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_MARVELL_EXT",
+   "device": "0x9235",
+   "class": null,
+   "line": 4355,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_TTI",
+   "device": "0x0642",
+   "class": null,
+   "line": 4357,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_TTI",
+   "device": "0x0645",
+   "class": null,
+   "line": 4359,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB388_ESD",
+   "class": null,
+   "line": 4362,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "0x1c28",
+   "device": "0x0122",
+   "class": null,
+   "line": 4366,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 19,
+ "calls_local": [],
+ "calls_external": [
+  "PCI_DEVFN",
+  "PCI_FUNC",
+  "PCI_SLOT",
+  "pci_add_dma_alias"
+ ],
+ "called_by": [],
+ "config_access": [],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 15,
+  "first": "2014-05-28",
+  "last": "2023-06-07",
+  "origin_pre_git": false,
+  "n_stable": 4,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+4305: static void quirk_dma_func1_alias(struct pci_dev *dev)
+4306: {
+4307: 	if (PCI_FUNC(dev->devfn) != 1)
+4308: 		pci_add_dma_alias(dev, PCI_DEVFN(PCI_SLOT(dev->devfn), 1), 1);
+4309: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4293-L4297",
+  "excerpt": "https://bugzilla.redhat.com/show_bug.cgi?id=605888\n\nSome Ricoh devices use function 0 as the PCIe requester ID for DMA.",
+  "role": "preamble"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4301-L4301",
+  "excerpt": "Some Glenfly chips use function 0 as the PCIe Requester ID for DMA",
+  "role": "preamble"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4311-L4316",
+  "excerpt": "Marvell 88SE9123 uses function 1 as the requester ID for DMA.  In some\nSKUs function 1 is present and is a legacy IDE controller, in other\nSKUs this function is not present, making this a ghost requester.\nhttps://bugzilla.kernel.org/show_bug.cgi?id=42679",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4321-L4321",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c136",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4326-L4326",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c14",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4331-L4331",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c47 + c57",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4334-L4334",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c59",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4337-L4337",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c78",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4340-L4340",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c134",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4343-L4343",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c46",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4346-L4346",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c135",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4349-L4349",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c127",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4352-L4352",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c49",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4361-L4361",
+  "excerpt": "https://bugs.gentoo.org/show_bug.cgi?id=497630",
+  "role": "registration_site"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4365-L4365",
+  "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c117",
+  "role": "registration_site"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4317",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9120,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4319",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9123,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4322",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9125,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4324",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9128,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4327",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9130,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4329",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9170,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4332",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9172,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4335",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x917a,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4338",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9182,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4341",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9183,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4344",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x91a0,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4347",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9215,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4350",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9220,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4353",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9230,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4355",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9235,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4357",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_TTI, 0x0642,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4359",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_TTI, 0x0645,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4362",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_JMICRON,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4366",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(0x1c28, /* Lite-On */",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:cc346a4714a5",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell devices",
+  "date": "2014-05-28",
+  "author": "Alex Williamson",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=42679"
+   ],
+   "tested_by": [
+    "George Spelvin <linux@horizon.com>",
+    "Andreas Schr\u00e4gle <ajs124.ajs124@gmail.com>",
+    "Tobias N <qemu@suppser.de>",
+    "<daxcore@online.de>"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell devices\n\nSeveral Marvell devices and a JMicron device have a similar DMA requester\nID problem to Ricoh, except they use function 1 as the PCIe requester ID.\nAdd a quirk for these to populate the DMA alias with the correct devfn."
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=42679",
+  "excerpt": "(bug tracker entry referenced by commit cc346a4714a5)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:c2e0fb966ad8",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for HighPoint RocketRaid 642L",
+  "date": "2014-06-03",
+  "author": "J\u00e9r\u00f4me Carretero",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=42679"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for HighPoint RocketRaid 642L\n\nThis device uses function 1 as the PCIe requester ID.\n\nThis vendor has similar boards based on the same Marvell 88SE9235 chipset,\nbut this patch was only tested with the 642L.\n\nTested on ASUS Sabertooth 990FX (AMD)."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:247de694349c",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 9120",
+  "date": "2015-05-22",
+  "author": "Sakari Ailus",
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 9120\n\nMarvell 9120 SATA controller has the same issue as a number of others, so\nuse the same quirk for this one.  The other quirks were added by\ncc346a4714a5 (\"PCI: Add function 1 DMA alias quirk for Marvell devices\")."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:8b9b963e55a8",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Lite-On/Plextor M6e/Marvell 88SS9183",
+  "date": "2016-01-19",
+  "author": "Tim Sander",
+  "message": "PCI: Add function 1 DMA alias quirk for Lite-On/Plextor M6e/Marvell 88SS9183\n\nAdd function 1 DMA alias quirk for Lite-On/Plextor M6e/Marvell 88SS9183."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f0af9593372a",
+  "excerpt": "PCI: Add pci_add_dma_alias() to abstract implementation",
+  "date": "2016-02-24",
+  "author": "Bjorn Helgaas",
+  "message": "PCI: Add pci_add_dma_alias() to abstract implementation\n\nAdd a pci_add_dma_alias() interface to encapsulate the details of adding an\nalias.  No functional change intended."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:00456b35a527",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9182",
+  "date": "2016-05-18",
+  "author": "Aaron Sierra",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c78"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9182\n\nAdd function 1 DMA alias quirk for Marvell 88SE9182.\n\nWe found this quirk reported in the same thread as other Marvell\ndevices, but no patch resulted:\n\n  https://bugzilla.kernel.org/show_bug.cgi?id=42679#c78"
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c78",
+  "excerpt": "(bug tracker entry referenced by commit 00456b35a527)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:aa0082066343",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 9128",
+  "date": "2018-01-16",
+  "author": "Alex Williamson",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=42679"
+   ],
+   "reported_by": [
+    "Binarus <lists@binarus.de>"
+   ],
+   "tested_by": [
+    "Binarus <lists@binarus.de>"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 9128\n\nThe Marvell 9128 is the original device generating bug 42679, from which\nmany other Marvell DMA alias quirks have been sourced, but we didn't have\npositive confirmation of the fix on 9128 until now."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:832e4e1f76b8",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9220",
+  "date": "2018-02-27",
+  "author": "Thomas Vincent-Cross",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=42679"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9220\n\nAdd Marvell 88SE9220 DMA quirk as found and tested on bug 42679."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1903be8222b7",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Highpoint RocketRAID 644L",
+  "date": "2018-03-02",
+  "author": "Hans de Goede",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.redhat.com/show_bug.cgi?id=1534106"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Highpoint RocketRAID 644L\n\nThe Highpoint RocketRAID 644L uses a Marvel 88SE9235 controller, as with\nother Marvel controllers this needs a function 1 DMA alias quirk.\n\nNote the RocketRAID 642L uses the same Marvel 88SE9235 controller and\nalready is listed with a function 1 DMA alias quirk."
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.redhat.com/show_bug.cgi?id=1534106",
+  "excerpt": "(bug tracker entry referenced by commit 1903be8222b7)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7695e73f3db4",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 88SS9183",
+  "date": "2018-08-13",
+  "author": "Bjorn Helgaas",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c134"
+   ],
+   "reported_by": [
+    "Felix Bl\u00fcthner <f.bluethner@mailbox.org>"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 88SS9183\n\nAdd function 1 DMA alias quirk for Marvell 88SS9183 PCIe SSD Controller."
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c134",
+  "excerpt": "(bug tracker entry referenced by commit 7695e73f3db4)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:9cde402a5977",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 9170 SATA controller",
+  "date": "2019-04-05",
+  "author": "Andre Przywara",
+  "trailers": {
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 9170 SATA controller\n\nThere is a Marvell 88SE9170 PCIe SATA controller I found on a board here.\nSome quick testing with the ARM SMMU enabled reveals that it suffers from\nthe same requester ID mixup problems as the other Marvell chips listed\nalready.\n\nAdd the PCI vendor/device ID to the list of chips which need the\nworkaround."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:09298542cd89",
+  "excerpt": "PCI: Add nr_devfns parameter to pci_add_dma_alias()",
+  "date": "2019-12-10",
+  "author": "James Sewart",
+  "message": "PCI: Add nr_devfns parameter to pci_add_dma_alias()\n\nAdd a \"nr_devfns\" parameter to pci_add_dma_alias() so it can be used to\ncreate DMA aliases for a range of devfns.\n\n[bhelgaas: incorporate nr_devfns fix from James, update\nquirk_pex_vca_alias() and setup_aliases()]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:059983790a4c",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 9215 SATA controller",
+  "date": "2020-11-10",
+  "author": "Bjorn Helgaas",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20201110220516.697934-1-helgaas@kernel.org"
+   ],
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c135"
+   ],
+   "reported_by": [
+    "John Smith <LK7S2ED64JHGLKj75shg9klejHWG49h5hk@protonmail.com>"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 9215 SATA controller\n\nAdd function 1 DMA alias quirk for Marvell 88SS9215 PCIe SSD Controller."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20201110220516.697934-1-helgaas@kernel.org",
+  "excerpt": "(linked from commit 059983790a4c; thread not retrieved)"
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=42679#c135",
+  "excerpt": "(bug tracker entry referenced by commit 059983790a4c)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e44537588288",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9125 SATA controller",
+  "date": "2021-12-02",
+  "author": "Yifeng Li",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/YahpKVR+McJVDdkD@work"
+   ],
+   "reported_by": [
+    "Sam Bingner <sam@bingner.com>"
+   ],
+   "tested_by": [
+    "Sam Bingner <sam@bingner.com>",
+    "Yifeng Li <tomli@tomli.me>"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9125 SATA controller\n\nLike other SATA controller chips in the Marvell 88SE91xx series, the\nMarvell 88SE9125 has the same DMA requester ID hardware bug that prevents\nit from working under IOMMU.  Add it to the list of devices that need the\nquirk.\n\nWithout this patch, device initialization fails with DMA errors:\n\n  ata8: softreset failed (1st FIS failed)\n  DMAR: DRHD: handling fault status reg 2\n  DMAR: [DMA Write NO_PASID] Request device [03:00.1] fault addr 0xfffc0000 [fault reason 0x02] Present bit in context entry is clear\n  DMAR: DRHD: handling fault status reg 2\n  DMAR: [DMA Read NO_PASID] Request device [03:00.1] fault addr 0xfffc0000 [fault reason 0x02] Present bit in context entry is clear\n\nAfter applying the patch, the controller can be successfully initialized:\n\n  ata8: SATA link up 1.5 Gbps (SStatus 113 SControl 330)\n  ata8.00: ATAPI: PIONEER BD-RW   BDR-207M, 1.21, max UDMA/100\n  ata8.00: configured for UDMA/100\n  scsi 7:0:0:0: CD-ROM            PIONEER  BD-RW   BDR-207M 1.21 PQ: 0 ANSI: 5"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/YahpKVR+McJVDdkD@work",
+  "excerpt": "(linked from commit e44537588288; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:88d341716b83",
+  "excerpt": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9235",
+  "date": "2023-06-07",
+  "author": "Robin Murphy",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/linux-iommu/2a699a99-545c-1324-e052-7d2f41fed1ae@yahoo.co.uk/",
+    "https://lore.kernel.org/r/731507e05d70239aec96fcbfab6e65d8ce00edd2.1686157165.git.robin.murphy@arm.com"
+   ],
+   "reported_by": [
+    "Jason Adriaanse <jason_a69@yahoo.co.uk>"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Add function 1 DMA alias quirk for Marvell 88SE9235\n\nMarvell's own product brief implies the 92xx series are a closely related\nfamily, and sure enough it turns out that 9235 seems to need the same quirk\nas the other three, although possibly only when certain ports are used."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/linux-iommu/2a699a99-545c-1324-e052-7d2f41fed1ae@yahoo.co.uk/",
+  "excerpt": "(linked from commit 88d341716b83; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/731507e05d70239aec96fcbfab6e65d8ce00edd2.1686157165.git.robin.murphy@arm.com",
+  "excerpt": "(linked from commit 88d341716b83; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

@@ -1,0 +1,826 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "asus_hides_smbus_hostbridge",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 1511,
+  "end": 1628
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82845_HB",
+   "class": null,
+   "line": 1629,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82845G_HB",
+   "class": null,
+   "line": 1630,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82850_HB",
+   "class": null,
+   "line": 1631,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82865_HB",
+   "class": null,
+   "line": 1632,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82875_HB",
+   "class": null,
+   "line": 1633,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_7205_0",
+   "class": null,
+   "line": 1634,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_E7501_MCH",
+   "class": null,
+   "line": 1635,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82855PM_HB",
+   "class": null,
+   "line": 1636,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82855GM_HB",
+   "class": null,
+   "line": 1637,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82915GM_HB",
+   "class": null,
+   "line": 1638,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82810_IG3",
+   "class": null,
+   "line": 1640,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82801DB_2",
+   "class": null,
+   "line": 1641,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82815_CGC",
+   "class": null,
+   "line": 1642,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 13,
+ "calls_local": [],
+ "calls_external": [
+  "unlikely"
+ ],
+ "called_by": [],
+ "config_access": [],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [
+  "device",
+  "subsystem_vendor"
+ ],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 24,
+  "first": "2005-04-16",
+  "last": "2014-04-18",
+  "origin_pre_git": true,
+  "n_stable": 0,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+1511: static void asus_hides_smbus_hostbridge(struct pci_dev *dev)
+1512: {
+1513: 	if (unlikely(dev->subsystem_vendor == PCI_VENDOR_ID_ASUSTEK)) {
+1514: 		if (dev->device == PCI_DEVICE_ID_INTEL_82845_HB)
+1515: 			switch (dev->subsystem_device) {
+1516: 			case 0x8025: /* P4B-LX */
+1517: 			case 0x8070: /* P4B */
+1518: 			case 0x8088: /* P4B533 */
+1519: 			case 0x1626: /* L3C notebook */
+1520: 				asus_hides_smbus = 1;
+1521: 			}
+1522: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82845G_HB)
+1523: 			switch (dev->subsystem_device) {
+1524: 			case 0x80b1: /* P4GE-V */
+1525: 			case 0x80b2: /* P4PE */
+1526: 			case 0x8093: /* P4B533-V */
+1527: 				asus_hides_smbus = 1;
+1528: 			}
+1529: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82850_HB)
+1530: 			switch (dev->subsystem_device) {
+1531: 			case 0x8030: /* P4T533 */
+1532: 				asus_hides_smbus = 1;
+1533: 			}
+1534: 		else if (dev->device == PCI_DEVICE_ID_INTEL_7205_0)
+1535: 			switch (dev->subsystem_device) {
+1536: 			case 0x8070: /* P4G8X Deluxe */
+1537: 				asus_hides_smbus = 1;
+1538: 			}
+1539: 		else if (dev->device == PCI_DEVICE_ID_INTEL_E7501_MCH)
+1540: 			switch (dev->subsystem_device) {
+1541: 			case 0x80c9: /* PU-DLS */
+1542: 				asus_hides_smbus = 1;
+1543: 			}
+1544: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82855GM_HB)
+1545: 			switch (dev->subsystem_device) {
+1546: 			case 0x1751: /* M2N notebook */
+1547: 			case 0x1821: /* M5N notebook */
+1548: 			case 0x1897: /* A6L notebook */
+1549: 				asus_hides_smbus = 1;
+1550: 			}
+1551: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82855PM_HB)
+1552: 			switch (dev->subsystem_device) {
+1553: 			case 0x184b: /* W1N notebook */
+1554: 			case 0x186a: /* M6Ne notebook */
+1555: 				asus_hides_smbus = 1;
+1556: 			}
+1557: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82865_HB)
+1558: 			switch (dev->subsystem_device) {
+1559: 			case 0x80f2: /* P4P800-X */
+1560: 				asus_hides_smbus = 1;
+1561: 			}
+1562: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82915GM_HB)
+1563: 			switch (dev->subsystem_device) {
+1564: 			case 0x1882: /* M6V notebook */
+1565: 			case 0x1977: /* A6VA notebook */
+1566: 				asus_hides_smbus = 1;
+1567: 			}
+1568: 	} else if (unlikely(dev->subsystem_vendor == PCI_VENDOR_ID_HP)) {
+1569: 		if (dev->device ==  PCI_DEVICE_ID_INTEL_82855PM_HB)
+1570: 			switch (dev->subsystem_device) {
+1571: 			case 0x088C: /* HP Compaq nc8000 */
+1572: 			case 0x0890: /* HP Compaq nc6000 */
+1573: 				asus_hides_smbus = 1;
+1574: 			}
+1575: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82865_HB)
+1576: 			switch (dev->subsystem_device) {
+1577: 			case 0x12bc: /* HP D330L */
+1578: 			case 0x12bd: /* HP D530 */
+1579: 			case 0x006a: /* HP Compaq nx9500 */
+1580: 				asus_hides_smbus = 1;
+1581: 			}
+1582: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82875_HB)
+1583: 			switch (dev->subsystem_device) {
+1584: 			case 0x12bf: /* HP xw4100 */
+1585: 				asus_hides_smbus = 1;
+1586: 			}
+1587: 	} else if (unlikely(dev->subsystem_vendor == PCI_VENDOR_ID_SAMSUNG)) {
+1588: 		if (dev->device ==  PCI_DEVICE_ID_INTEL_82855PM_HB)
+1589: 			switch (dev->subsystem_device) {
+1590: 			case 0xC00C: /* Samsung P35 notebook */
+1591: 				asus_hides_smbus = 1;
+1592: 		}
+1593: 	} else if (unlikely(dev->subsystem_vendor == PCI_VENDOR_ID_COMPAQ)) {
+1594: 		if (dev->device == PCI_DEVICE_ID_INTEL_82855PM_HB)
+1595: 			switch (dev->subsystem_device) {
+1596: 			case 0x0058: /* Compaq Evo N620c */
+1597: 				asus_hides_smbus = 1;
+1598: 			}
+1599: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82810_IG3)
+1600: 			switch (dev->subsystem_device) {
+1601: 			case 0xB16C: /* Compaq Deskpro EP 401963-001 (PCA# 010174) */
+1602: 				/* Motherboard doesn't have Host bridge
+1603: 				 * subvendor/subdevice IDs, therefore checking
+1604: 				 * its on-board VGA controller */
+1605: 				asus_hides_smbus = 1;
+1606: 			}
+1607: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82801DB_2)
+1608: 			switch (dev->subsystem_device) {
+1609: 			case 0x00b8: /* Compaq Evo D510 CMT */
+1610: 			case 0x00b9: /* Compaq Evo D510 SFF */
+1611: 			case 0x00ba: /* Compaq Evo D510 USDT */
+1612: 				/* Motherboard doesn't have Host bridge
+1613: 				 * subvendor/subdevice IDs and on-board VGA
+1614: 				 * controller is disabled if an AGP card is
+1615: 				 * inserted, therefore checking USB UHCI
+1616: 				 * Controller #1 */
+1617: 				asus_hides_smbus = 1;
+1618: 			}
+1619: 		else if (dev->device == PCI_DEVICE_ID_INTEL_82815_CGC)
+1620: 			switch (dev->subsystem_device) {
+1621: 			case 0x001A: /* Compaq Deskpro EN SSF P667 815E */
+1622: 				/* Motherboard doesn't have host bridge
+1623: 				 * subvendor/subdevice IDs, therefore checking
+1624: 				 * its on-board VGA controller */
+1625: 				asus_hides_smbus = 1;
+1626: 			}
+1627: 	}
+1628: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1484-L1508",
+  "excerpt": "On ASUS P4B boards, the SMBus PCI Device within the ICH2/4 southbridge\nis not activated. The myth is that Asus said that they do not want the\nusers to be irritated by just another PCI Device in the Win98 device\nmanager. (see the file prog/hotplug/README.p4b in the lm_sensors\npackage 2.7.0 for details)\n\nThe SMBus PCI Device can be activated by setting a bit in the ICH LPC\nbridge. Unfortunately, this device has no subvendor/subdevice ID. So it\nbecomes necessary to do this tweak in two steps -- the chosen trigger\nis either the Host bridge (preferred) or on-board VGA controller.\n\nNote that we used to unhide the SMBus that way on Toshiba laptops\n(Satellite A40 and Tecra M2) but then found that the thermal management\nwas done by SMM code, which could cause unsynchronized concurrent\naccesses to the SMBus registers, with potentially bad effects. Thus you\nshould be very careful when adding new entries: if SMM is accessing the\nIntel SMBus, this is a very good reason to leave it hidden.\n\nLikewise, many recent laptops use ACPI for thermal management. If the\nACPI DSDT code accesses the SMBus, then Linux should not access it\nnatively, and keeping the SMBus hidden is the right thing to do. If you\nare about to add an entry in the table below, please first disassemble\nthe DSDT and double-check that there is no code accessing the SMBus.",
+  "role": "preamble"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1516",
+  "excerpt": "P4B-LX",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1518",
+  "excerpt": "P4B533",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1519",
+  "excerpt": "L3C notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1524",
+  "excerpt": "P4GE-V",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1525",
+  "excerpt": "P4PE",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1526",
+  "excerpt": "P4B533-V",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1531",
+  "excerpt": "P4T533",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1536",
+  "excerpt": "P4G8X Deluxe",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1541",
+  "excerpt": "PU-DLS",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1546",
+  "excerpt": "M2N notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1547",
+  "excerpt": "M5N notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1548",
+  "excerpt": "A6L notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1553",
+  "excerpt": "W1N notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1554",
+  "excerpt": "M6Ne notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1559",
+  "excerpt": "P4P800-X",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1564",
+  "excerpt": "M6V notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1565",
+  "excerpt": "A6VA notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1571",
+  "excerpt": "HP Compaq nc8000",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1572",
+  "excerpt": "HP Compaq nc6000",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1577",
+  "excerpt": "HP D330L",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1578",
+  "excerpt": "HP D530",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1579",
+  "excerpt": "HP Compaq nx9500",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1584",
+  "excerpt": "HP xw4100",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1590",
+  "excerpt": "Samsung P35 notebook",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1596",
+  "excerpt": "Compaq Evo N620c",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1601",
+  "excerpt": "Compaq Deskpro EP 401963-001 (PCA# 010174)",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1602",
+  "excerpt": "Motherboard doesn't have Host bridge\nsubvendor/subdevice IDs, therefore checking\nits on-board VGA controller",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1609",
+  "excerpt": "Compaq Evo D510 CMT",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1610",
+  "excerpt": "Compaq Evo D510 SFF",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1611",
+  "excerpt": "Compaq Evo D510 USDT",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1612",
+  "excerpt": "Motherboard doesn't have Host bridge\nsubvendor/subdevice IDs and on-board VGA\ncontroller is disabled if an AGP card is\ninserted, therefore checking USB UHCI\nController #1",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1621",
+  "excerpt": "Compaq Deskpro EN SSF P667 815E",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1622",
+  "excerpt": "Motherboard doesn't have host bridge\nsubvendor/subdevice IDs, therefore checking\nits on-board VGA controller",
+  "role": "inline"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1629",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82845_HB,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1630",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82845G_HB,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1631",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82850_HB,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1632",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82865_HB,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1633",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82875_HB,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1634",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_7205_0,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1635",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_E7501_MCH,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1636",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82855PM_HB,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1637",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82855GM_HB,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1638",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82915GM_HB, asus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1640",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82810_IG3,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1641",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82801DB_2,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1642",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82815_CGC,\tasus_hides_smbus_hostbridge);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1da177e4c3f4",
+  "excerpt": "Linux-2.6.12-rc2",
+  "date": "2005-04-16",
+  "author": "Linus Torvalds",
+  "pre_git_import": true,
+  "message": "Linux-2.6.12-rc2\n\nInitial git repository build. I'm not bothering with the full history,\neven though we have it. We can create a separate \"historical\" git\narchive of that later if we want to, and in the meantime it's about\n3.2GB when imported into git - space that would just make the early\ngit days unnecessarily complicated, when we don't have a lot of good\ninfrastructure for it.\n\nLet it rip!"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:a00db371624e",
+  "excerpt": "[PATCH] PCI: Add PCI quirk for SMBus on the Asus P4B-LX",
+  "date": "2005-06-29",
+  "author": "Jean Delvare",
+  "message": "[PATCH] PCI: Add PCI quirk for SMBus on the Asus P4B-LX\n\nOne more Asus motherboard requiring the SMBus quirk (P4B-LX). Original\npatch from Salah Coronya."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e96e2f148060",
+  "excerpt": "[PATCH] PCI: Hidden SMBus bridge on Toshiba Tecra M2",
+  "date": "2005-07-29",
+  "author": "Daniele Gaffuri",
+  "message": "[PATCH] PCI: Hidden SMBus bridge on Toshiba Tecra M2\n\nPatch against 2.6.12 to unhide SMBus on Toshiba Centrino laptops using\nIntel 82855PM chipset.  Tested on Toshiba Tecra M2."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:c87f883edbe9",
+  "excerpt": "[PATCH] PCI: Unhide SMBus on Compaq Evo N620c",
+  "date": "2005-09-06",
+  "author": "Rumen Ivanov Zarev",
+  "message": "[PATCH] PCI: Unhide SMBus on Compaq Evo N620c\n\nTrivial patch against 2.6.13 to unhide SMBus on Compaq Evo N620c laptop using\nIntel 82855PM chipset."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e3b1bd572f1c",
+  "excerpt": "[PATCH] PCI: Add quirk for SMBus on HP D530",
+  "date": "2005-09-21",
+  "author": "Jean Delvare",
+  "message": "[PATCH] PCI: Add quirk for SMBus on HP D530\n\nOne more SMBus unhiding quirk, this time for the HP D530. Requested and\nsuccessfully tested by Ben Cranston."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:acc06632e387",
+  "excerpt": "[PATCH] unhide ICH6 SMBus - take 2",
+  "date": "2005-09-29",
+  "author": "R.Marek@sh.cvut.cz",
+  "message": "[PATCH] unhide ICH6 SMBus - take 2\n\nThis patch unhides hidden SMBus on ICH6 chipset installed in\nAsus M6V notebook. I would like to thank Michal Mleczko for\ntesting and help.\n\n\n drivers/pci/quirks.c |   24 ++++++++++++++++++++++++\n 1 file changed, 24 insertions(+)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3c0a654e390d",
+  "excerpt": "[PATCH] PCI: SMBus unhide on HP Compaq nx6110",
+  "date": "2006-02-19",
+  "author": "tomek@koprowski.org",
+  "message": "[PATCH] PCI: SMBus unhide on HP Compaq nx6110\n\nI attach a trivial patch for 2.6.15.4 that unhides SMBus controller\non an HP Compaq nx6110 notebook."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:2d1e1c754d64",
+  "excerpt": "[PATCH] PCI: Add PCI quirk for SMBus on the Asus A6VA notebook",
+  "date": "2006-04-01",
+  "author": "Jean Delvare",
+  "message": "[PATCH] PCI: Add PCI quirk for SMBus on the Asus A6VA notebook\n\nThe Asus A6VA notebook was reported to need a PCI quirk to unhide\nthe SMBus."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:321311af25cb",
+  "excerpt": "PCI: Unhide the SMBus on Asus PU-DLS",
+  "date": "2006-07-31",
+  "author": "Jean Delvare",
+  "message": "PCI: Unhide the SMBus on Asus PU-DLS\n\nUnhide the SMBus controller on the Asus PU-DLS board.\nThis fixes bug #6763."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:2e45785c529e",
+  "excerpt": "PCI: Unhide the SMBus on the Asus P4P800-X",
+  "date": "2007-01-05",
+  "author": "Jean Delvare",
+  "message": "PCI: Unhide the SMBus on the Asus P4P800-X\n\nUnhide the SMBus on the Asus P4P800-X (and probably some other\nmodels of the family.) This gives access to the memory module SPD\nEEPROMs.\n\nThanks to Winbond for supporting the lm-sensors project with the\ndonation of this motherboard."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:2f2d39d28435",
+  "excerpt": "PCI: Speed up the Intel SMBus unhiding quirk",
+  "date": "2007-01-05",
+  "author": "Jean Delvare",
+  "message": "PCI: Speed up the Intel SMBus unhiding quirk\n\nSpeed up the Intel SMBus PCI quirk by avoiding tests which can only\nfail. This also makes the compiled code significantly smaller when\nusing gcc 3.2/3.4. gcc 4.x appears to optimize the code by itself so\nthis change doesn't make a difference there."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:9208ee8286ea",
+  "excerpt": "PCI: Stop unhiding the SMBus on Toshiba laptops",
+  "date": "2007-03-24",
+  "author": "Jean Delvare",
+  "message": "PCI: Stop unhiding the SMBus on Toshiba laptops\n\nIt was found that the Toshiba laptops with hidden Intel SMBus have SMM\ncode handling the thermal management which accesses the SMBus. Thus it\nis not safe to unhide it and let Linux access it. We have to leave the\nSMBus hidden. SMM is a pain, really.\n\nThis fixes bugs #6315 and #6395, for good this time."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:d7698edca8d3",
+  "excerpt": "PCI: unhide SMBus on Compaq Deskpro EP 401963-001 motherboard",
+  "date": "2007-08-23",
+  "author": "gw.kernel@tnode.com",
+  "message": "PCI: unhide SMBus on Compaq Deskpro EP 401963-001 motherboard\n\nPCI quirk to unhide SMBus on Compaq Deskpro EP 401963-001 (PCA# 010174) motherboard."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:677cc6443b28",
+  "excerpt": "PCI: Unhide the SMBus on the HP xw4100",
+  "date": "2007-11-21",
+  "author": "Jean Delvare",
+  "message": "PCI: Unhide the SMBus on the HP xw4100\n\nUnhide the SMBus on the HP xw4100. This gives access to a hardware\nmonitoring chip (ADT7463) and to the memory module SPD EEPROMs. I\nchecked that ACPI wasn't accessing the SMBus, so it should be safe."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:a99acc832de1",
+  "excerpt": "pci: revert SMBus unhide on HP Compaq nx6110",
+  "date": "2008-03-28",
+  "author": "Jean Delvare",
+  "trailers": {
+   "bug_refs": [
+    "http://bugzilla.kernel.org/show_bug.cgi?id=10245"
+   ]
+  },
+  "message": "pci: revert SMBus unhide on HP Compaq nx6110\n\nThis reverts commit 3c0a654e390d00fef9d8faed758f5e1e8078adb5 and\nfixes kernel bug #10245:\n\n\thttp://bugzilla.kernel.org/show_bug.cgi?id=10245\n\nThe HP Compaq nc6120 has the same PCI sub-device ID as the nx6110, and the\nSMBus is used by ACPI for thermal management on the nc6120, so Linux should\nnot attach a native driver to it.  This means that this quirk is unsafe and\nhas to be removed.\n\nI also added a comment to help developers realize that adding new IDs to this\nSMBus unhiding quirk table should be done only with great care, and in\nparticular only after checking that ACPI is not making use of the SMBus."
+ },
+ {
+  "type": "bug_report",
+  "ref": "http://bugzilla.kernel.org/show_bug.cgi?id=10245",
+  "excerpt": "(bug tracker entry referenced by commit a99acc832de1)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:10260d9ab702",
+  "excerpt": "PCI: Unhide the SMBus on the Compaq Evo D510",
+  "date": "2008-06-04",
+  "author": "Jean Delvare",
+  "message": "PCI: Unhide the SMBus on the Compaq Evo D510\n\nOne more machine with a hidden Intel SMBus. Unhiding it reveals a SMSC\nEMC6D100 hardware monitoring chip. I have checked that this machine\nhas no ACPI magic touching the SMBus nor the hardware monitoring chip,\nso this should be safe."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:27e468597315",
+  "excerpt": "PCI: unhide the SMBus on the Compaq Deskpro EN",
+  "date": "2008-06-08",
+  "author": "Krzysztof Helt",
+  "trailers": {
+   "tested_by": [
+    "Rafa\u0142 Ha\u0142aduda <rh1985@wp.pl>"
+   ]
+  },
+  "message": "PCI: unhide the SMBus on the Compaq Deskpro EN\n\nThis patch unhides the SMBus on Compaq Deskpro EN\nSFF P667 with the Intel 815E chipset. Unhiding it reveals\na THMC51 hardware monitoring chip.\n\nJean Delvare has checked that this machine has no ACPI\nmagic touching the SMBus nor the hardware monitoring chip,\nso this should be safe.\n\nThe patch was tested on Fedora Core 9 with 2.6.25.4 kernel."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:8293b0f62909",
+  "excerpt": "PCI: Compaq Evo D510 SMBus quirk using USB instead of VGA",
+  "date": "2009-03-02",
+  "author": "David O'Shea",
+  "message": "PCI: Compaq Evo D510 SMBus quirk using USB instead of VGA\n\nOn the Compaq Evo D510 SFF/CMT, a PCI quirk activated the SMBus device\nbased on detection of the on-board VGA controller, but the on-board\nVGA is disabled if an AGP card is inserted, so look for one of the USB\ncontrollers instead."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:4096ed0fc7c6",
+  "excerpt": "PCI: expose SMBus on Asus notebook A6L",
+  "date": "2009-05-12",
+  "author": "Mats Erik Andersson",
+  "message": "PCI: expose SMBus on Asus notebook A6L\n\nAddition of one unknown subsystem identifier to the quirks handler for\nchipset i82855GM_HB on notebook Asus A6L. This exposes the otherwise\nhidden SMBus controller within the south bridge ICH4-M."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:74c57428971d",
+  "excerpt": "PCI quirk: HP hides SMBus controller in Compaq nx9500 laptops",
+  "date": "2009-05-12",
+  "author": "Michal Miroslaw",
+  "message": "PCI quirk: HP hides SMBus controller in Compaq nx9500 laptops\n\nI found no references to SMBus in ACPI DSDT disassembly on my laptop\nso this should be safe."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:6b5096e4d449",
+  "excerpt": "PCI: Unhide the SMBus on the Compaq Evo D510 USDT",
+  "date": "2009-07-28",
+  "author": "Jean Delvare",
+  "trailers": {
+   "tested_by": [
+    "Nuzhna Pomoshch <nuzhna_pomoshch@yahoo.com>"
+   ]
+  },
+  "message": "PCI: Unhide the SMBus on the Compaq Evo D510 USDT\n\nOne more form factor for Compaq Evo D510, which needs the same quirk\nas the other form factors. Apparently there's no hardware monitoring\nchip on that one, but SPD EEPROMs, so it's still worth unhiding the\nSMBus."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:b99ea85a3acf",
+  "excerpt": "PCI: move fixup hooks from __init to __devinit",
+  "date": "2012-06-03",
+  "author": "Sebastian Andrzej Siewior",
+  "cleanup": true,
+  "message": "PCI: move fixup hooks from __init to __devinit\n\nThe fixups are executed once the pci-device is found which is during\nboot process so __init seems fine as long as the platform does not\nsupport hotplug.\n\nHowever it is possible to remove the PCI bus at run time and have it\nrediscovered again via \"echo 1 > /sys/bus/pci/rescan\" and this will call\nthe fixups again."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:15856ad50bf5",
+  "excerpt": "PCI: Remove __dev* markings",
+  "date": "2012-11-21",
+  "author": "Bill Pemberton",
+  "cleanup": true,
+  "message": "PCI: Remove __dev* markings\n\nCONFIG_HOTPLUG is going away as an option so __devexit_p, __devint,\n__devinitdata, __devinitconst, and _devexit are no longer needed."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3c78bc61f5ef",
+  "excerpt": "PCI: Whitespace cleanup",
+  "date": "2014-04-18",
+  "author": "Ryan Desfosses",
+  "cleanup": true,
+  "message": "PCI: Whitespace cleanup\n\nFix various whitespace errors.\n\nNo functional change.\n\n[bhelgaas: fix other similar problems]"
+ }
+]
+
+Produce the JSON analysis now.

@@ -1,0 +1,157 @@
+{
+ "function": "nvme_disable_and_flr",
+ "one_line_intent": "Device-specific reset for Samsung SM961/PM961 NVMe: cleanly disable the NVMe controller (CC.EN=0, wait for RDY=0) before issuing FLR.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Samsung SM961 can enter a fatal state after FLR (config reads return -1); disabling the controller first avoids it.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4071-L4073",
+      "excerpt": "can sometimes enter a fatal state after FLR where config space reads from the device return -1.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Skips the NVMe shutdown notification on purpose - it could complete admin commands; the goal is only to quiesce.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4110-L4113",
+      "excerpt": "skip shutdown notification as it could complete commands to the admin queue.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Known-incomplete: controllers needing NVME_QUIRK_DELAY_BEFORE_CHK_RDY are explicitly unsupported.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4119-L4122",
+      "excerpt": "None of those are yet supported by this quirk.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Timeout derived from the controller's CAP.TO field in 500 ms units; polls every 100 ms.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4125",
+      "excerpt": "Cap register provides max timeout in 500ms increments",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L4135",
+      "excerpt": "msleep(100);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Duplicates a slice of NVMe driver logic (nvme_disable_ctrl) inside the PCI layer - a deliberate layering violation.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4111-L4112",
+      "excerpt": "Per nvme_disable_ctrl()",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Dispatched through pci_dev_reset_methods[] for Samsung 0xa804; generic for NVMe class but only registered for one ID.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L4240",
+      "excerpt": "{ PCI_VENDOR_ID_SAMSUNG, 0xa804, nvme_disable_and_flr },",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Directly accesses NVMe BAR registers (CC, CAP, CSTS) - must track the NVMe spec register layout.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L4096",
+      "excerpt": "bar = pci_iomap(dev, 0, NVME_REG_CC + sizeof(cfg));",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "A bad reset leaves the SSD inaccessible until power cycle, in VM assignment scenarios.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:ffb0863426eb",
+      "excerpt": "sometimes fails to return from FLR with the PCI config space reading back as -1.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Written the same day as delay_250ms_after_flr by the same author for a different NVMe failure after FLR - NVMe + FLR + VFIO is a recurring risk cluster.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:51ba09452d11",
+      "excerpt": "PCI: Delay after FLR of Intel DC P3700 NVMe",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 10,
+  "verified": 10,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

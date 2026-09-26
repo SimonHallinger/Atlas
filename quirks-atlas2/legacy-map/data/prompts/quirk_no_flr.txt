@@ -1,0 +1,385 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_no_flr",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 5603,
+  "end": 5606
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x1487",
+   "class": null,
+   "line": 5607,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x148c",
+   "class": null,
+   "line": 5608,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x149c",
+   "class": null,
+   "line": 5609,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x7901",
+   "class": null,
+   "line": 5610,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x1502",
+   "class": null,
+   "line": 5611,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x17f0",
+   "class": null,
+   "line": 5612,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "0x1502",
+   "class": null,
+   "line": 5613,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "0x1503",
+   "class": null,
+   "line": 5614,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_MEDIATEK",
+   "device": "0x0616",
+   "class": null,
+   "line": 5615,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_MEDIATEK",
+   "device": "0x7925",
+   "class": null,
+   "line": 5616,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 10,
+ "calls_local": [],
+ "calls_external": [],
+ "called_by": [
+  "quirk_no_flr_snet"
+ ],
+ "config_access": [],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [
+  "dev_flags"
+ ],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 8,
+  "first": "2017-04-03",
+  "last": "2026-05-22",
+  "origin_pre_git": false,
+  "n_stable": 2,
+  "fixes_chain": [
+   {
+    "by": "81f64e925c29",
+    "fixes": "d591f6804e7e (\"PCI: Wait for device readiness with Configuration RRS\")",
+    "fixes_hash": "d591f6804e7e",
+    "in_this_function": false
+   }
+  ]
+ }
+}
+
+SOURCE:
+```c
+5603: static void quirk_no_flr(struct pci_dev *dev)
+5604: {
+5605: 	dev->dev_flags |= PCI_DEV_FLAGS_NO_FLR_RESET;
+5606: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L5591-L5602",
+  "excerpt": "FLR may cause the following to devices to hang:\n\nAMD Starship/Matisse HD Audio Controller 0x1487\nAMD Starship USB 3.0 Host Controller 0x148c\nAMD Matisse USB 3.0 Host Controller 0x149c\nAMD Neural Processing Unit 0x1502 0x17f0\nIntel 82579LM Gigabit Ethernet Controller 0x1502\nIntel 82579V Gigabit Ethernet Controller 0x1503\nMediatek MT7922 802.11ax PCI Express Wireless Network Adapter\nMediatek MT7925 802.11be PCI Express Wireless Network Adapter",
+  "role": "doc"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5607",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_AMD, 0x1487, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5608",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_AMD, 0x148c, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5609",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_AMD, 0x149c, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5610",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_AMD, 0x7901, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5611",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_AMD, 0x1502, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5612",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_AMD, 0x17f0, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5613",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_INTEL, 0x1502, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5614",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_INTEL, 0x1503, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5615",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MEDIATEK, 0x0616, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L5616",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MEDIATEK, 0x7925, quirk_no_flr);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f65fd1aa4f98",
+  "excerpt": "PCI: Avoid FLR for Intel 82579 NICs",
+  "date": "2017-04-03",
+  "author": "Sasha Neftin",
+  "message": "PCI: Avoid FLR for Intel 82579 NICs\n\nPer Intel Specification Update 335553-002 (see link below), some 82579\nnetwork adapters advertise a Function Level Reset (FLR) capability, but\nthey can hang when an FLR is triggered.\n\nTo reproduce the problem, attach the device to a VM, then detach and try to\nattach again.\n\nAdd a quirk to prevent the use of FLR on these devices.\n\n[bhelgaas: changelog, comments]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:82e1719c4cd6",
+  "excerpt": "PCI: Clean up whitespace in quirks.c",
+  "date": "2018-05-02",
+  "author": "Bjorn Helgaas",
+  "cleanup": true,
+  "message": "PCI: Clean up whitespace in quirks.c\n\nClean up whitespace, capitalization, etc. in comments.  No functional\nchange intended."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:0d14f06cd665",
+  "excerpt": "PCI: Avoid FLR for AMD Matisse HD Audio & USB 3.0",
+  "date": "2020-05-20",
+  "author": "Marcos Scriven",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/CAAri2DpkcuQZYbT6XsALhx2e6vRqPHwtbjHYeiH7MNp4zmt1RA@mail.gmail.com"
+   ]
+  },
+  "message": "PCI: Avoid FLR for AMD Matisse HD Audio & USB 3.0\n\nThe AMD Matisse HD Audio & USB 3.0 devices advertise Function Level Reset\nsupport, but hang when an FLR is triggered.\n\nTo reproduce the problem, attach the device to a VM, then detach and try to\nattach again.\n\nRename the existing quirk_intel_no_flr(), which was not Intel-specific, to\nquirk_no_flr(), and apply it to prevent the use of FLR on these AMD\ndevices."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/CAAri2DpkcuQZYbT6XsALhx2e6vRqPHwtbjHYeiH7MNp4zmt1RA@mail.gmail.com",
+  "excerpt": "(linked from commit 0d14f06cd665; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:5727043c73fd",
+  "excerpt": "PCI: Avoid FLR for AMD Starship USB 3.0",
+  "date": "2020-05-24",
+  "author": "Kevin Buettner",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20200524003529.598434ff@f31-4.lan"
+   ]
+  },
+  "message": "PCI: Avoid FLR for AMD Starship USB 3.0\n\nThe AMD Starship USB 3.0 host controller advertises Function Level Reset\nsupport, but it apparently doesn't work.  Add a quirk to prevent use of FLR\non this device.\n\nWithout this quirk, when attempting to assign (pass through) an AMD\nStarship USB 3.0 host controller to a guest OS, the system becomes\nincreasingly unresponsive over the course of several minutes, eventually\nrequiring a hard reset.  Shortly after attempting to start the guest, I see\nthese messages:\n\n  vfio-pci 0000:05:00.3: not ready 1023ms after FLR; waiting\n  vfio-pci 0000:05:00.3: not ready 2047ms after FLR; waiting\n  vfio-pci 0000:05:00.3: not ready 4095ms after FLR; waiting\n  vfio-pci 0000:05:00.3: not ready 8191ms after FLR; waiting\n\nAnd then eventually:\n\n  vfio-pci 0000:05:00.3: not ready 65535ms after FLR; giving up\n  INFO: NMI handler (perf_event_nmi_handler) took too long to run: 0.000 msecs\n  perf: interrupt took too long (642744 > 2500), lowering kernel.perf_event_max_sample_rate to 1000\n  INFO: NMI handler (perf_event_nmi_handler) took too long to run: 82.270 msecs\n  INFO: NMI handler (perf_event_nmi_handler) took too long to run: 680.608 msecs\n  INFO: NMI handler (perf_event_nmi_handler) took too long to run: 100.952 msecs\n  ...\n  watchdog: BUG: soft lockup - CPU#3 stuck for 22s! [qemu-system-x86:7487]\n\nTested on a Micro-Star International Co., Ltd. MS-7C59/Creator TRX40\nmotherboard with an AMD Ryzen Threadripper 3970X."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20200524003529.598434ff@f31-4.lan",
+  "excerpt": "(linked from commit 5727043c73fd; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:63ba51db24ed",
+  "excerpt": "PCI: Avoid FLR for AMD FCH AHCI adapters",
+  "date": "2023-01-28",
+  "author": "Damien Le Moal",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20230128013951.523247-1-damien.lemoal@opensource.wdc.com"
+   ],
+   "reported_by": [
+    "Niklas Cassel <niklas.cassel@wdc.com>"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Avoid FLR for AMD FCH AHCI adapters\n\nPCI passthrough to VMs does not work with AMD FCH AHCI adapters: the guest\nOS fails to correctly probe devices attached to the controller due to FIS\ncommunication failures:\n\n  ata4: softreset failed (1st FIS failed)\n  ...\n  ata4.00: qc timeout after 5000 msecs (cmd 0xec)\n  ata4.00: failed to IDENTIFY (I/O error, err_mask=0x4)\n\nForcing the \"bus\" reset method before unbinding & binding the adapter to\nthe vfio-pci driver solves this issue, e.g.:\n\n  echo \"bus\" > /sys/bus/pci/devices/<ID>/reset_method\n\ngives a working guest OS, indicating that the default FLR reset method\ndoesn't work correctly.\n\nApply quirk_no_flr() to AMD FCH AHCI devices to work around this issue."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20230128013951.523247-1-damien.lemoal@opensource.wdc.com",
+  "excerpt": "(linked from commit 63ba51db24ed; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:81f64e925c29",
+  "excerpt": "PCI: Avoid FLR for Mediatek MT7922 WiFi",
+  "date": "2025-02-12",
+  "author": "Bjorn Helgaas",
+  "trailers": {
+   "fixes": [
+    "d591f6804e7e (\"PCI: Wait for device readiness with Configuration RRS\")"
+   ],
+   "links": [
+    "https://lore.kernel.org/r/20250212193516.88741-1-helgaas@kernel.org",
+    "https://lore.kernel.org/r/Z4pHll_6GX7OUBzQ@mail-itl"
+   ],
+   "tested_by": [
+    "Marek Marczykowski-G\u00f3recki <marmarek@invisiblethingslab.com>"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Avoid FLR for Mediatek MT7922 WiFi\n\nThe Mediatek MT7922 WiFi device advertises FLR support, but it apparently\ndoes not work, and all subsequent config reads return ~0:\n\n  pci 0000:01:00.0: [14c3:0616] type 00 class 0x028000 PCIe Endpoint\n  pciback 0000:01:00.0: not ready 65535ms after FLR; giving up\n\nAfter an FLR, pci_dev_wait() waits for the device to become ready.  Prior\nto d591f6804e7e (\"PCI: Wait for device readiness with Configuration RRS\"),\nit polls PCI_COMMAND until it is something other that PCI_POSSIBLE_ERROR\n(~0).  If it times out, pci_dev_wait() returns -ENOTTY and\n__pci_reset_function_locked() tries the next available reset method.\nTypically this is Secondary Bus Reset, which does work, so the MT7922 is\neventually usable.\n\nAfter d591f6804e7e, if Configuration Request Retry Status Software\nVisibility (RRS SV) is enabled, pci_dev_wait() polls PCI_VENDOR_ID until it\nis something other than the special 0x0001 Vendor ID that indicates a\ncompletion with RRS status.\n\nWhen RRS SV is enabled, reads of PCI_VENDOR_ID should return either 0x0001,\ni.e., the config read was completed with RRS, or a valid Vendor ID.  On the\nMT7922, it seems that all config reads after FLR return ~0 indefinitely.\nWhen pci_dev_wait() reads PCI_VENDOR_ID and gets 0xffff, it assumes that's\na valid Vendor ID and the device is now ready, so it returns with success.\n\nAfter pci_dev_wait() returns success, we restore config space and continue.\nSince the MT7922 is not actually ready after the FLR, the restore fails and\nthe device is unusable.\n\nWe considered changing pci_dev_wait() to continue polling if a\nPCI_VENDOR_ID read returns either 0x0001 or 0xffff.  This \"works\" as it did\nbefore d591f6804e7e, although we have to wait for the timeout and then fall\nback to SBR.  But it doesn't work for SR-IOV VFs, which *always* return\n0xffff as the Vendor ID.\n\nMark Mediatek MT7922 WiFi devices to avoid the use of FLR completely.  This\nwill cause fallback to another reset method, such as SBR."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20250212193516.88741-1-helgaas@kernel.org",
+  "excerpt": "(linked from commit 81f64e925c29; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/Z4pHll_6GX7OUBzQ@mail-itl",
+  "excerpt": "(linked from commit 81f64e925c29; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:806140e9a332",
+  "excerpt": "PCI: Avoid FLR for AMD NPU device",
+  "date": "2026-02-26",
+  "author": "Lizhi Hou",
+  "message": "PCI: Avoid FLR for AMD NPU device\n\nThe AMD NPU device (PCI Device IDs 0x1502 and 0x17f0) advertises FLR\nsupport. However, triggering an FLR causes the device to hang."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:9f22b92259bb",
+  "excerpt": "PCI: Avoid FLR for MediaTek MT7925 WiFi",
+  "date": "2026-05-22",
+  "author": "Jose Ignacio Tornos Martinez",
+  "message": "PCI: Avoid FLR for MediaTek MT7925 WiFi\n\nThe MediaTek MT7925 WiFi device advertises FLR capability, but it does not\nwork correctly. This manifests in VFIO passthrough scenarios. Normal VM\noperation works fine, including clean shutdown/reboot. However, when the VM\nterminates uncleanly (crash, force-off), VFIO attempts to reset the device\nbefore it can be assigned to another VM. Because FLR is broken, the reset\nfails, preventing reuse.\n\nThis is similar to its predecessor MT7922 (see 81f64e925c29 (\"PCI: Avoid\nFLR for Mediatek MT7922 WiFi\")), but with different symptoms.  The MT7922\nissue manifests as config read failures (returning ~0) after FLR. The\nMT7925 shows different behavior: config reads work correctly after FLR, but\nfirmware communication fails.\n\nFirst VM start with MT7925 works fine:\n\n  mt7925e 0000:08:00.0: ASIC revision: 79250000\n  mt7925e 0000:08:00.0: WM Firmware Version: ____000000, Build Time: 20260106153120\n\nAfter force reset or VM crash, when VFIO attempts FLR to reset the device\nfor reassignment, firmware initialization fails:\n\n  mt7925e 0000:08:00.0: ASIC revision: 79250000\n  mt7925e 0000:08:00.0: Message 00000010 (seq 1) timeout\n  mt7925e 0000:08:00.0: Failed to get patch semaphore\n  [Repeats with increasing sequence numbers 2-10]\n  mt7925e 0000:08:00.0: hardware init failed\n\nThe driver cannot acquire the patch semaphore needed for firmware\ninitialization, indicating that FLR does not properly reset the firmware\nstate. The device remains in this broken state until physical power cycle.\n\nDisable FLR for MT7925 so the PCI core falls back to other reset methods,\ne.g., Secondary Bus Reset, which successfully resets the device and allows\nreinitialization for VFIO passthrough reuse."
+ }
+]
+
+Produce the JSON analysis now.

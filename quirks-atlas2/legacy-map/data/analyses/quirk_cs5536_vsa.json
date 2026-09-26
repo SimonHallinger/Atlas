@@ -1,0 +1,137 @@
+{
+ "function": "quirk_cs5536_vsa",
+ "one_line_intent": "Fix up wrong or read-only BARs of the AMD CS5536 ISA bridge reported by buggy BIOSes (e.g. Soekris NET5501).",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "BIOS reports BAR0 as 8k instead of 8 bytes, conflicting with BAR1; the quirk rewrites sizes for SMB, GPIO and MFGPT regions.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L632-L636",
+      "excerpt": "BAR0 should be 8 bytes; instead, it may be set to something like 8k",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Hardcoded sizes 8/256/64 correspond to SMB/GPIO/MFGPT blocks.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L646",
+      "excerpt": "quirk_io(dev, 0,   8, name);\t/* SMB */",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Embedded x86 (Geode) boards with read-only BARs.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L638-L639",
+      "excerpt": "CS553x's ISA PCI BARs may also be read-only",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "BIOS bug workaround.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:73d2eaac8a3f",
+      "excerpt": "As anticipated, we've run into a buggy BIOS",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Resource layout is consumed by cs5535 GPIO/MFGPT/SMBus drivers.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:73d2eaac8a3f",
+      "excerpt": "The new cs5535-* drivers use PCI header config info rather than MSRs",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Depends on core BAR-sizing behaviour: a 2014 core change zeroed read-only BAR starts and silently broke this quirk.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:06cf35f903aa",
+      "excerpt": "There's a workaround in quirk_cs5536_vsa(), but it no longer works after 36e8164882ca",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Embedded boards lose GPIO/timers/SMBus - on appliance hardware that may mean watchdog/timer failure.",
+    "confidence": "low",
+    "basis": "inference",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L646-L648",
+      "excerpt": "MFGPT",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Quirks can be broken by 'correct' core changes: fixing BAR detection broke the workaround for a device with broken BARs.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:06cf35f903aa",
+      "excerpt": "Prior to 36e8164882ca, we filled in res->start; afterwards we leave it zeroed out.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

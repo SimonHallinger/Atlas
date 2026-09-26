@@ -1,0 +1,231 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_tigerpoint_bm_sts",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 373,
+  "end": 386
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_HEADER",
+   "phase": "header",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_TGP_LPC",
+   "class": null,
+   "line": 387,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 1,
+ "calls_local": [],
+ "calls_external": [
+  "inw",
+  "outw",
+  "pci_info",
+  "pci_read_config_dword"
+ ],
+ "called_by": [],
+ "config_access": [
+  {
+   "op": "read",
+   "api": "pci_read_config_dword",
+   "offset": "0x40",
+   "value": null,
+   "line": 378
+  }
+ ],
+ "delays": [],
+ "timing": [],
+ "io": [
+  {
+   "fn": "inw",
+   "args": [
+    "pmbase"
+   ],
+   "line": 380
+  },
+  {
+   "fn": "outw",
+   "args": [
+    "0x10",
+    "pmbase"
+   ],
+   "line": 384
+  }
+ ],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 4,
+  "first": "2010-09-24",
+  "last": "2023-08-24",
+  "origin_pre_git": false,
+  "n_stable": 0,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+373: static void quirk_tigerpoint_bm_sts(struct pci_dev *dev)
+374: {
+375: 	u32 pmbase;
+376: 	u16 pm1a;
+377: 
+378: 	pci_read_config_dword(dev, 0x40, &pmbase);
+379: 	pmbase = pmbase & 0xff80;
+380: 	pm1a = inw(pmbase);
+381: 
+382: 	if (pm1a & 0x10) {
+383: 		pci_info(dev, FW_BUG "Tiger Point LPC.BM_STS cleared\n");
+384: 		outw(0x10, pmbase);
+385: 	}
+386: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L369-L372",
+  "excerpt": "Intel NM10 \"Tiger Point\" LPC PM1a_STS.BM_STS must be clear\nfor some HT machines to use C4 w/o hanging.",
+  "role": "doc"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L355-L358",
+  "excerpt": "It's not totally clear which chipsets are the problematic ones.  We know\n82C586 and 82C596 variants are affected.",
+  "role": "preamble"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L380",
+  "excerpt": "pm1a = inw(pmbase);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L384",
+  "excerpt": "outw(0x10, pmbase);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L387",
+  "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_TGP_LPC, quirk_tigerpoint_bm_sts);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:4731fdcf6f7b",
+  "excerpt": "intel_idle: PCI quirk to prevent Lenovo Ideapad s10-3 boot hang",
+  "date": "2010-09-24",
+  "author": "Len Brown",
+  "trailers": {
+   "bug_refs": [
+    "http://bugs.meego.com/show_bug.cgi?id=7093",
+    "https://bugs.launchpad.net/ubuntu/+source/linux/+bug/634702"
+   ]
+  },
+  "message": "intel_idle: PCI quirk to prevent Lenovo Ideapad s10-3 boot hang\n\nWhen the Lenovo Ideapad S10-3 is booted with HT enabled,\nit hits a boot hang in the intel_idle driver.\n\nThis occurs when entering ATM-C4 for the first time,\nunless BM_STS is first cleared.\n\nacpi_idle doesn't see this because it first checks\nand clears BM_STS, but it would hit the same hang\nif that check were disabled.\n\nhttp://bugs.meego.com/show_bug.cgi?id=7093\nhttps://bugs.launchpad.net/ubuntu/+source/linux/+bug/634702"
+ },
+ {
+  "type": "bug_report",
+  "ref": "http://bugs.meego.com/show_bug.cgi?id=7093",
+  "excerpt": "(bug tracker entry referenced by commit 4731fdcf6f7b)"
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugs.launchpad.net/ubuntu/+source/linux/+bug/634702",
+  "excerpt": "(bug tracker entry referenced by commit 4731fdcf6f7b)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:15856ad50bf5",
+  "excerpt": "PCI: Remove __dev* markings",
+  "date": "2012-11-21",
+  "author": "Bill Pemberton",
+  "cleanup": true,
+  "message": "PCI: Remove __dev* markings\n\nCONFIG_HOTPLUG is going away as an option so __devexit_p, __devint,\n__devinitdata, __devinitconst, and _devexit are no longer needed."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7506dc798993",
+  "excerpt": "PCI: Add wrappers for dev_printk()",
+  "date": "2018-01-18",
+  "author": "Frederick Lawler",
+  "cleanup": true,
+  "message": "PCI: Add wrappers for dev_printk()\n\nAdd PCI-specific dev_printk() wrappers and use them to simplify the code\nslightly.  No functional change intended.\n\n[bhelgaas: squash into one patch]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:86b4ad7d67b2",
+  "excerpt": "PCI: Fix typos in docs and comments",
+  "date": "2023-08-24",
+  "author": "Bjorn Helgaas",
+  "cleanup": true,
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20230824193712.542167-11-helgaas@kernel.org"
+   ]
+  },
+  "message": "PCI: Fix typos in docs and comments\n\nFix typos in docs and comments."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20230824193712.542167-11-helgaas@kernel.org",
+  "excerpt": "(linked from commit 86b4ad7d67b2; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

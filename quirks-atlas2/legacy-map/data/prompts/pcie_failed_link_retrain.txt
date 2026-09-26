@@ -1,0 +1,468 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "pcie_failed_link_retrain",
+ "kind": "helper",
+ "lines": {
+  "start": 95,
+  "end": 131
+ },
+ "fixup_registrations": [],
+ "n_fixups": 0,
+ "calls_local": [
+  "pcie_lbms_seen"
+ ],
+ "calls_external": [
+  "PCIE_LNKCTL2_TLS2SPEED",
+  "pci_info",
+  "pci_is_pcie",
+  "pcie_cap_has_lnkctl2",
+  "pcie_capability_read_word",
+  "pcie_downstream_port",
+  "pcie_get_speed_cap",
+  "pcie_set_target_speed"
+ ],
+ "called_by": [],
+ "config_access": [
+  {
+   "op": "read",
+   "api": "pcie_capability_read_word",
+   "offset": "PCI_EXP_LNKSTA",
+   "value": null,
+   "line": 109
+  },
+  {
+   "op": "read",
+   "api": "pcie_capability_read_word",
+   "offset": "PCI_EXP_LNKCTL2",
+   "value": null,
+   "line": 110
+  },
+  {
+   "op": "read",
+   "api": "pcie_capability_read_word",
+   "offset": "PCI_EXP_LNKCTL2",
+   "value": null,
+   "line": 118
+  }
+ ],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": true,
+ "history": {
+  "n_commits": 11,
+  "first": "2023-06-11",
+  "last": "2025-12-08",
+  "origin_pre_git": false,
+  "n_stable": 4,
+  "fixes_chain": [
+   {
+    "by": "f68dea13405c",
+    "fixes": "a89c82249c37 (\"PCI: Work around PCIe link training failures\")",
+    "fixes_hash": "a89c82249c37",
+    "in_this_function": true
+   },
+   {
+    "by": "712e49c96706",
+    "fixes": "a89c82249c37 (\"PCI: Work around PCIe link training failures\")",
+    "fixes_hash": "a89c82249c37",
+    "in_this_function": true
+   },
+   {
+    "by": "59100eb248c0",
+    "fixes": "1abb47390350 (\"Merge branch 'pci/enumeration'\")",
+    "fixes_hash": "1abb47390350",
+    "in_this_function": true
+   },
+   {
+    "by": "b85af48de3ec",
+    "fixes": "de9a6c8d5dbf (\"PCI/bwctrl: Add pcie_set_target_speed() to set PCIe Link Speed\")",
+    "fixes_hash": "de9a6c8d5dbf",
+    "in_this_function": true
+   },
+   {
+    "by": "72780f796468",
+    "fixes": "a89c82249c37 (\"PCI: Work around PCIe link training failures\")",
+    "fixes_hash": "a89c82249c37",
+    "in_this_function": true
+   }
+  ]
+ }
+}
+
+SOURCE:
+```c
+95: int pcie_failed_link_retrain(struct pci_dev *dev)
+96: {
+97: 	u16 lnksta, lnkctl2, oldlnkctl2;
+98: 	enum pci_bus_speed speed_cap;
+99: 	int ret = -ENOTTY;
+100: 
+101: 	if (!pci_is_pcie(dev) || !pcie_downstream_port(dev) ||
+102: 	    !pcie_cap_has_lnkctl2(dev) || !dev->link_active_reporting)
+103: 		return ret;
+104: 
+105: 	speed_cap = pcie_get_speed_cap(dev);
+106: 	if (speed_cap <= PCIE_SPEED_2_5GT)
+107: 		return ret;
+108: 
+109: 	pcie_capability_read_word(dev, PCI_EXP_LNKSTA, &lnksta);
+110: 	pcie_capability_read_word(dev, PCI_EXP_LNKCTL2, &oldlnkctl2);
+111: 	if (!(lnksta & PCI_EXP_LNKSTA_DLLLA) && pcie_lbms_seen(dev, lnksta)) {
+112: 		pci_info(dev, "broken device, retraining non-functional downstream link at 2.5GT/s\n");
+113: 		ret = pcie_set_target_speed(dev, PCIE_SPEED_2_5GT, false);
+114: 		if (ret)
+115: 			goto err;
+116: 	}
+117: 
+118: 	pcie_capability_read_word(dev, PCI_EXP_LNKCTL2, &lnkctl2);
+119: 	if ((lnkctl2 & PCI_EXP_LNKCTL2_TLS) == PCI_EXP_LNKCTL2_TLS_2_5GT) {
+120: 		pci_info(dev, "removing 2.5GT/s downstream link speed restriction\n");
+121: 		ret = pcie_set_target_speed(dev, speed_cap, false);
+122: 		if (ret)
+123: 			goto err;
+124: 	}
+125: 
+126: 	return ret;
+127: err:
+128: 	pci_info(dev, "retraining failed\n");
+129: 	pcie_set_target_speed(dev, PCIE_LNKCTL2_TLS2SPEED(oldlnkctl2), true);
+130: 	return ret;
+131: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L48-L94",
+  "excerpt": "Retrain the link of a downstream PCIe port by hand if necessary.\n\nThis is needed at least where a downstream port of the ASMedia ASM2824\nGen 3 switch is wired to the upstream port of the Pericom PI7C9X2G304\nGen 2 switch, and observed with the Delock Riser Card PCI Express x1 >\n2 x PCIe x1 device, P/N 41433, plugged into the SiFive HiFive Unmatched\nboard.\n\nIn such a configuration the switches are supposed to negotiate the link\nspeed of preferably 5.0GT/s, falling back to 2.5GT/s.  However the link\ncontinues switching between the two speeds indefinitely and the data\nlink layer never reaches the active state, with link training reported\nrepeatedly active ~84% of the time.  Forcing the target link speed to\n2.5GT/s with the upstream ASM2824 device makes the two switches talk to\neach other correctly however.  And more interestingly retraining with a\nhigher target link speed afterwards lets the two successfully negotiate\n5.0GT/s.\n\nWith the ASM2824 we can rely on the otherwise optional Data Link Layer\nLink Active status bit and in the failed link training scenario it will\nbe off along with the Link Bandwidth Management Status indicating that\nhardware has changed the link speed or width in an attempt to correct\nunreliable link operation.  For a port that has been left unconnected\nboth bits will be clear.  So use this information to detect the problem\nrather than polling the Link Training bit and watching out for flips or\nat least the active status.\n\nSince the exact nature of the problem isn't known and in principle this\ncould trigger where an ASM2824 device is downstream rather upstream,\napply this erratum workaround to any downstream ports as long as they\nsupport Link Active reporting and have the Link Control 2 register.\nRestrict the speed to 2.5GT/s then with the Target Link Speed field,\nrequest a retrain and check the result.\n\nIf this turns out successful, or where a 2.5GT/s speed restriction has\nbeen previously arranged by the firmware and the port reports its link\nalready being up, lift the restriction, in a hope it is safe to do so,\nletting the devices negotiate a higher speed.\n\nOtherwise revert the speed to the original setting and request a retrain\nagain to remove any residual state, ignoring the result as it's supposed\nto fail anyway.\n\nReturn 0 if the link has been successfully retrained.  Return an error\nif retraining was not needed or we attempted a retrain and it failed.",
+  "role": "doc"
+ },
+ {
+  "type": "code",
+  "ref": "drivers/pci/pci.c:L1288",
+  "excerpt": "if (pcie_failed_link_retrain(bridge) == 0) {",
+  "role": "external_reference"
+ },
+ {
+  "type": "code",
+  "ref": "drivers/pci/pci.c:L4693",
+  "excerpt": "rc = pcie_failed_link_retrain(pdev);",
+  "role": "external_reference"
+ },
+ {
+  "type": "code",
+  "ref": "drivers/pci/pci.h:L1101",
+  "excerpt": "int pcie_failed_link_retrain(struct pci_dev *dev);",
+  "role": "external_reference"
+ },
+ {
+  "type": "code",
+  "ref": "drivers/pci/pci.h:L1117",
+  "excerpt": "static inline int pcie_failed_link_retrain(struct pci_dev *dev)",
+  "role": "external_reference"
+ },
+ {
+  "type": "code",
+  "ref": "drivers/pci/probe.c:L2743",
+  "excerpt": "pcie_failed_link_retrain(dev);",
+  "role": "external_reference"
+ },
+ {
+  "type": "code",
+  "ref": "drivers/pci/quirks.c:L95",
+  "excerpt": "int pcie_failed_link_retrain(struct pci_dev *dev)",
+  "role": "external_reference"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:a89c82249c37",
+  "excerpt": "PCI: Work around PCIe link training failures",
+  "date": "2023-06-11",
+  "author": "Maciej W. Rozycki",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/alpine.DEB.2.21.2203022037020.56670@angie.orcam.me.uk/",
+    "https://lore.kernel.org/r/alpine.DEB.2.21.2305310038540.59226@angie.orcam.me.uk",
+    "https://lore.kernel.org/r/alpine.DEB.2.21.2306111619570.64925@angie.orcam.me.uk"
+   ]
+  },
+  "message": "PCI: Work around PCIe link training failures\n\nAttempt to handle cases such as with a downstream port of the ASMedia\nASM2824 PCIe switch where link training never completes and the link\ncontinues switching between speeds indefinitely with the data link layer\nnever reaching the active state.\n\nIt has been observed with a downstream port of the ASMedia ASM2824 Gen 3\nswitch wired to the upstream port of the Pericom PI7C9X2G304 Gen 2 switch,\nusing a Delock Riser Card PCI Express x1 > 2 x PCIe x1 device, P/N 41433,\nwired to a SiFive HiFive Unmatched board.  In this setup the switches\nshould negotiate a link speed of 5.0GT/s, falling back to 2.5GT/s if\nnecessary.\n\nInstead the link continues oscillating between the two speeds, at the rate\nof 34-35 times per second, with link training reported repeatedly active\n~84% of the time.  Limiting the target link speed to 2.5GT/s with the\nupstream ASM2824 device makes the two switches communicate correctly.\nRemoving the speed restriction afterwards makes the two devices switch to\n5.0GT/s then.\n\nMake use of these observations and detect the inability to train the link\nby checking for the Data Link Layer Link Active status bit being off while\nthe Link Bandwidth Management Status indicating that hardware has changed\nthe link speed or width in an attempt to correct unreliable link operation.\n\nRestrict the speed to 2.5GT/s then with the Target Link Speed field,\nrequest a retrain and wait 200ms for the data link to go up.  If this is\nsuccessful, lift the restriction, letting the devices negotiate a higher\nspeed.\n\nAlso check for a 2.5GT/s speed restriction the firmware may have already\narranged and lift it too with ports of devices known to continue working\nafterwards (currently only ASM2824), that already report their data link\nbeing up.\n\n[bhelgaas: reorder and squash stubs from\nhttps://lore.kernel.org/r/alpine.DEB.2.21.2306111619570.64925@angie.orcam.me.uk\nto avoid adding stubs that do nothing]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/alpine.DEB.2.21.2203022037020.56670@angie.orcam.me.uk/",
+  "excerpt": "(linked from commit a89c82249c37; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/alpine.DEB.2.21.2305310038540.59226@angie.orcam.me.uk",
+  "excerpt": "(linked from commit a89c82249c37; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/alpine.DEB.2.21.2306111619570.64925@angie.orcam.me.uk",
+  "excerpt": "(linked from commit a89c82249c37; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1abb47390350",
+  "excerpt": "Merge branch 'pci/enumeration'",
+  "date": "2023-06-26",
+  "author": "Bjorn Helgaas",
+  "message": "Merge branch 'pci/enumeration'\n\n- Add PCI_EXT_CAP_ID_PL_32GT define (Ben Dooks)\n\n- Propagate firmware node by calling device_set_node() for better\n  modularity (Andy Shevchenko)\n\n- Discover Data Link Layer Link Active Reporting earlier so quirks can take\n  advantage of it (Maciej W. Rozycki)\n\n- Use cached Data Link Layer Link Active Reporting capability in pciehp,\n  powerpc/eeh, and mlx5 (Maciej W. Rozycki)\n\n- Run quirk for devices that require OS to clear Retrain Link earlier, so\n  later quirks can rely on it (Maciej W. Rozycki)\n\n- Export pcie_retrain_link() for use outside ASPM (Maciej W. Rozycki)\n\n- Add Data Link Layer Link Active Reporting as another way for\n  pcie_retrain_link() to determine the link is up (Maciej W. Rozycki)\n\n- Work around link training failures (especially on the ASMedia ASM2824\n  switch) by training first at 2.5GT/s and then attempting higher rates\n  (Maciej W. Rozycki)\n\n* pci/enumeration:\n  PCI: Add failed link recovery for device reset events\n  PCI: Work around PCIe link training failures\n  PCI: Use pcie_wait_for_link_status() in pcie_wait_for_link_delay()\n  PCI: Add support for polling DLLLA to pcie_retrain_link()\n  PCI: Export pcie_retrain_link() for use outside ASPM\n  PCI: Export PCIe link retrain timeout\n  PCI: Execute quirk_enable_clear_retrain_link() earlier\n  PCI/ASPM: Factor out waiting for link training to complete\n  PCI/ASPM: Avoid unnecessary pcie_link_state use\n  PCI/ASPM: Use distinct local vars in pcie_retrain_link()\n  net/mlx5: Rely on dev->link_active_reporting\n  powerpc/eeh: Rely on dev->link_active_reporting\n  PCI: pciehp: Rely on dev->link_active_reporting\n  PCI: Initialize dev->link_active_reporting earlier\n  PCI: of: Propagate firmware node by calling device_set_node()\n  PCI: Add PCI_EXT_CAP_ID_PL_32GT define\n\n# Conflicts:\n#\tdrivers/pci/pcie/aspm.c"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f68dea13405c",
+  "excerpt": "PCI: Revert to the original speed after PCIe failed link retraining",
+  "date": "2024-08-09",
+  "author": "Maciej W. Rozycki",
+  "trailers": {
+   "fixes": [
+    "a89c82249c37 (\"PCI: Work around PCIe link training failures\")"
+   ],
+   "links": [
+    "https://lore.kernel.org/linux-pci/alpine.DEB.2.21.2408251412590.30766@angie.orcam.me.uk",
+    "https://lore.kernel.org/r/20240722193407.23255-1-mattc@purestorage.com/",
+    "https://lore.kernel.org/r/20240806000659.30859-1-mattc@purestorage.com/"
+   ],
+   "reported_by": [
+    "Matthew W Carlis <mattc@purestorage.com>"
+   ],
+   "cc_stable": [
+    "<stable@vger.kernel.org> # v6.5+"
+   ]
+  },
+  "message": "PCI: Revert to the original speed after PCIe failed link retraining\n\nWhen `pcie_failed_link_retrain' has failed to retrain the link by hand\nit leaves the link speed restricted to 2.5GT/s, which will then affect\nany device that has been plugged in later on, which may not suffer from\nthe problem that caused the speed restriction to have been attempted.\nConsequently such a downstream device will suffer from an unnecessary\ncommunication throughput limitation and therefore performance loss.\n\nRemove the speed restriction then and revert the Link Control 2 register\nto its original state if link retraining with the speed restriction in\nplace has failed.  Retrain the link again afterwards so as to remove any\nresidual state, waiting on LT rather than DLLLA to avoid an excessive\ndelay and ignoring the result as this training is supposed to fail\nanyway."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/linux-pci/alpine.DEB.2.21.2408251412590.30766@angie.orcam.me.uk",
+  "excerpt": "(linked from commit f68dea13405c; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20240722193407.23255-1-mattc@purestorage.com/",
+  "excerpt": "(linked from commit f68dea13405c; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20240806000659.30859-1-mattc@purestorage.com/",
+  "excerpt": "(linked from commit f68dea13405c; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:712e49c96706",
+  "excerpt": "PCI: Correct error reporting with PCIe failed link retraining",
+  "date": "2024-08-09",
+  "author": "Maciej W. Rozycki",
+  "trailers": {
+   "fixes": [
+    "a89c82249c37 (\"PCI: Work around PCIe link training failures\")"
+   ],
+   "links": [
+    "https://lore.kernel.org/r/aa2d1c4e-9961-d54a-00c7-ddf8e858a9b0@linux.intel.com/",
+    "https://lore.kernel.org/r/alpine.DEB.2.21.2408091133260.61955@angie.orcam.me.uk"
+   ],
+   "reported_by": [
+    "Ilpo J\u00e4rvinen <ilpo.jarvinen@linux.intel.com>"
+   ],
+   "cc_stable": [
+    "<stable@vger.kernel.org> # v6.5+"
+   ]
+  },
+  "message": "PCI: Correct error reporting with PCIe failed link retraining\n\nOnly return successful completion status from pcie_failed_link_retrain() if\nretraining has actually been done, preventing excessive delays from being\ntriggered at call sites in a hope that communication will finally be\nestablished with the downstream device where in fact nothing has been done\nabout the link in question that would justify such a hope."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/aa2d1c4e-9961-d54a-00c7-ddf8e858a9b0@linux.intel.com/",
+  "excerpt": "(linked from commit 712e49c96706; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/alpine.DEB.2.21.2408091133260.61955@angie.orcam.me.uk",
+  "excerpt": "(linked from commit 712e49c96706; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:59100eb248c0",
+  "excerpt": "PCI: Use an error code with PCIe failed link retraining",
+  "date": "2024-08-09",
+  "author": "Maciej W. Rozycki",
+  "trailers": {
+   "fixes": [
+    "1abb47390350 (\"Merge branch 'pci/enumeration'\")"
+   ],
+   "links": [
+    "https://lore.kernel.org/r/aa2d1c4e-9961-d54a-00c7-ddf8e858a9b0@linux.intel.com/",
+    "https://lore.kernel.org/r/alpine.DEB.2.21.2408091156530.61955@angie.orcam.me.uk"
+   ],
+   "reported_by": [
+    "Ilpo J\u00e4rvinen <ilpo.jarvinen@linux.intel.com>"
+   ],
+   "cc_stable": [
+    "<stable@vger.kernel.org> # v6.5+"
+   ]
+  },
+  "message": "PCI: Use an error code with PCIe failed link retraining\n\nGiven how the call place in pcie_wait_for_link_delay() got structured now,\nand that pcie_retrain_link() returns a potentially useful error code,\nconvert pcie_failed_link_retrain() to return an error code rather than a\nboolean status, fixing handling at the call site mentioned.  Update the\nother call site accordingly."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/alpine.DEB.2.21.2408091156530.61955@angie.orcam.me.uk",
+  "excerpt": "(linked from commit 59100eb248c0; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3491f5096668",
+  "excerpt": "PCI: Abstract LBMS seen check into pcie_lbms_seen()",
+  "date": "2024-10-18",
+  "author": "Ilpo J\u00e4rvinen",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20241018144755.7875-6-ilpo.jarvinen@linux.intel.com"
+   ]
+  },
+  "message": "PCI: Abstract LBMS seen check into pcie_lbms_seen()\n\nThe Target Speed quirk in pcie_failed_link_retrain() uses the presence of\nLBMS bit as one of the triggering conditions, effectively monopolizing the\nuse of that bit. An upcoming change will introduce a PCIe bandwidth\ncontroller which sets up an interrupt to track LBMS. As LBMS will be\ncleared by the interrupt handler, the Target Speed quirk will no longer be\nable to observe LBMS directly.\n\nAs a preparatory step for the change, extract the LBMS seen check from\npcie_failed_link_retrain() into a new function pcie_lmbs_seen()."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20241018144755.7875-6-ilpo.jarvinen@linux.intel.com",
+  "excerpt": "(linked from commit 3491f5096668; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:de9a6c8d5dbf",
+  "excerpt": "PCI/bwctrl: Add pcie_set_target_speed() to set PCIe Link Speed",
+  "date": "2024-10-18",
+  "author": "Ilpo J\u00e4rvinen",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20241018144755.7875-8-ilpo.jarvinen@linux.intel.com",
+    "https://lore.kernel.org/r/20241030163139.2111689-1-andriy.shevchenko@linux.intel.com,"
+   ]
+  },
+  "message": "PCI/bwctrl: Add pcie_set_target_speed() to set PCIe Link Speed\n\nCurrently, PCIe Link Speeds are adjusted by custom code rather than in a\ncommon function provided in PCI core. The PCIe bandwidth controller\n(bwctrl) introduces an in-kernel API, pcie_set_target_speed(), to set PCIe\nLink Speed.\n\nConvert Target Speed quirk to use the new API. The Target Speed quirk runs\nvery early when bwctrl is not yet probed for a Port and can also run later\nwhen bwctrl is already setup for the Port, which requires the per port\nmutex (set_speed_mutex) to be only taken if the bwctrl setup is already\ncomplete.\n\nThe new API is also intended to be used in an upcoming commit that adds a\nthermal cooling device to throttle PCIe bandwidth when thermal thresholds\nare reached.\n\nThe PCIe bandwidth control procedure is as follows. The highest speed\nsupported by the Port and the PCIe device which is not higher than the\nrequested speed is selected and written into the Target Link Speed in the\nLink Control 2 Register. Then bandwidth controller retrains the PCIe Link.\n\nBandwidth Notifications enable the cur_bus_speed in the struct pci_bus to\nkeep track PCIe Link Speed changes. While Bandwidth Notifications should\nalso be generated when bandwidth controller alters the PCIe Link Speed, a\nfew platforms do not deliver LMBS interrupt after Link Training as\nexpected. Thus, after changing the Link Speed, bandwidth controller makes\nadditional read for the Link Status Register to ensure cur_bus_speed is\nconsistent with the new PCIe Link Speed.\n\n[bhelgaas: squash devm_mutex_init() error checking from\nhttps://lore.kernel.org/r/20241030163139.2111689-1-andriy.shevchenko@linux.intel.com,\ndrop export of pcie_set_target_speed()]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20241018144755.7875-8-ilpo.jarvinen@linux.intel.com",
+  "excerpt": "(linked from commit de9a6c8d5dbf; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20241030163139.2111689-1-andriy.shevchenko@linux.intel.com,",
+  "excerpt": "(linked from commit de9a6c8d5dbf; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:b85af48de3ec",
+  "excerpt": "PCI: Adjust the position of reading the Link Control 2 register",
+  "date": "2025-01-23",
+  "author": "Jiwei Sun",
+  "trailers": {
+   "fixes": [
+    "de9a6c8d5dbf (\"PCI/bwctrl: Add pcie_set_target_speed() to set PCIe Link Speed\")"
+   ]
+  },
+  "message": "PCI: Adjust the position of reading the Link Control 2 register\n\nIn a89c82249c37 (\"PCI: Work around PCIe link training failures\"), if the\nspeed limit is set to 2.5 GT/s and the retraining is successful, an attempt\nwill be made to lift the speed limit. One condition for lifting the speed\nlimit is to check whether the link speed field of the Link Control 2\nregister is PCI_EXP_LNKCTL2_TLS_2_5GT.\n\nHowever, since de9a6c8d5dbf (\"PCI/bwctrl: Add pcie_set_target_speed() to\nset PCIe Link Speed\"), the `lnkctl2` local variable does not undergo any\nchanges during the speed limit setting and retraining process. As a result,\nthe code intended to lift the speed limit is not executed.\n\nTo address this issue, adjust the position of the Link Control 2 register\nread operation in the code and place it before its use."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:72780f796468",
+  "excerpt": "PCI: Always lift 2.5GT/s restriction in PCIe failed link retraining",
+  "date": "2025-12-08",
+  "author": "Maciej W. Rozycki",
+  "trailers": {
+   "fixes": [
+    "a89c82249c37 (\"PCI: Work around PCIe link training failures\")"
+   ],
+   "tested_by": [
+    "Alok Tiwari <alok.a.tiwari@oracle.com>"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org # v6.5+"
+   ]
+  },
+  "message": "PCI: Always lift 2.5GT/s restriction in PCIe failed link retraining\n\nDiscard Vendor:Device ID matching in the PCIe failed link retraining quirk\nand ignore the link status for the removal of the 2.5GT/s speed clamp,\nwhether applied by the quirk itself or the firmware earlier on.  Revert to\nthe original target link speed if this final link retraining has failed.\n\nThis is so that link training noise in hot-plug scenarios does not make a\nlink remain clamped to the 2.5GT/s speed where an event race has led the\nquirk to apply the speed clamp for one device, only to leave it in place\nfor a subsequent device to be plugged in.\n\nRefer to the Link Capabilities register directly for the maximum link speed\ndetermination so as to streamline backporting."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:30a361308085",
+  "excerpt": "PCI: Use pcie_get_speed_cap() in PCIe failed link retraining",
+  "date": "2025-12-08",
+  "author": "Maciej W. Rozycki",
+  "trailers": {
+   "tested_by": [
+    "Alok Tiwari <alok.a.tiwari@oracle.com>"
+   ]
+  },
+  "message": "PCI: Use pcie_get_speed_cap() in PCIe failed link retraining\n\nRewrite a check for the maximum link speed in the Link Capabilities\nregister in terms of pcie_get_speed_cap().  No functional change."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:64d63fd28177",
+  "excerpt": "PCI: Bail out early for 2.5GT/s devices in PCIe failed link retraining",
+  "date": "2025-12-08",
+  "author": "Maciej W. Rozycki",
+  "trailers": {
+   "tested_by": [
+    "Alok Tiwari <alok.a.tiwari@oracle.com>"
+   ]
+  },
+  "message": "PCI: Bail out early for 2.5GT/s devices in PCIe failed link retraining\n\nThere's no point in retraining a failed 2.5GT/s device at 2.5GT/s, so just\ndon't and return early.  While such devices might be unlikely to implement\nLink Active reporting, we need to retrieve the maximum link speed and use\nit in a conditional later on anyway, so the early check comes for free."
+ }
+]
+
+Produce the JSON analysis now.

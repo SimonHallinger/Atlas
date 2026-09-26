@@ -1,0 +1,391 @@
+<title>Quirks Atlas</title>
+<meta name="description" content="Evidence-backed system map of Linux drivers/pci/quirks.c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root{
+  --ground:#EEF1F4; --surface:#FFFFFF; --sunk:#E4E9EE; --ink:#17212B; --muted:#5A6774; --faint:#8A96A2;
+  --line:#D3DAE1; --accent:#2D5B88; --accent-soft:#DCE6F0;
+  --high:#B93A26; --high-soft:#F6E1DC; --med:#B27A0C; --med-soft:#F5EAD2; --low:#2F7F6B; --low-soft:#DBEEE8;
+  --edge:#9AA6B2; --dev:#A6B1BC; --effect:#7B5EA7; --iface:#2D5B88; --core:#8A4F2A;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0E141A; --surface:#151D25; --sunk:#1B252F; --ink:#E3E9EF; --muted:#9AA7B4; --faint:#6D7A87;
+  --line:#27333F; --accent:#86AEDB; --accent-soft:#1F3247;
+  --high:#EF7A62; --high-soft:#3A1E19; --med:#E3AE45; --med-soft:#352914; --low:#5CC3A6; --low-soft:#16302A;
+  --edge:#4E5C69; --dev:#56636F; --effect:#B39BDB; --iface:#86AEDB; --core:#D0916A; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --ground:#0E141A; --surface:#151D25; --sunk:#1B252F; --ink:#E3E9EF; --muted:#9AA7B4; --faint:#6D7A87;
+  --line:#27333F; --accent:#86AEDB; --accent-soft:#1F3247;
+  --high:#EF7A62; --high-soft:#3A1E19; --med:#E3AE45; --med-soft:#352914; --low:#5CC3A6; --low-soft:#16302A;
+  --edge:#4E5C69; --dev:#56636F; --effect:#B39BDB; --iface:#86AEDB; --core:#D0916A; color-scheme:dark;}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--ground);color:var(--ink);font:14px/1.5 var(--sans);margin:0}
+a{color:var(--accent)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;grid-template-rows:auto auto 1fr;height:100%;padding-inline:16px;gap:12px;padding-block:12px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.brand h1{font:700 22px/1.1 var(--cond);letter-spacing:.01em;margin:0}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.brand code{font-family:var(--mono);font-size:12px}
+.stats{display:flex;flex-wrap:wrap;gap:18px;font-variant-numeric:tabular-nums}
+.stat{display:flex;flex-direction:column}
+.stat b{font:600 18px/1.1 var(--cond)}
+.stat span{font:500 10.5px/1.2 var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.showcases{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.sc{all:unset;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.sc:hover{border-color:var(--accent)}
+.sc:focus-visible{outline:2px solid var(--accent)}
+.sc .k{font:600 10.5px/1 var(--cond);letter-spacing:.09em;text-transform:uppercase;color:var(--high)}
+.sc .t{font:600 14px/1.3 var(--cond)}
+.sc .f{font:12px var(--mono);color:var(--muted)}
+.main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(360px,1fr);gap:12px;min-height:0}
+.mapwrap{background:var(--surface);border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
+.toolbar input[type=search]{flex:1 1 160px;min-width:0;padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--ground)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--ground);cursor:pointer;font:500 12px var(--cond);letter-spacing:.02em;user-select:none}
+.chip input{margin:0;accent-color:var(--accent)}
+.chip[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent)}
+#map{flex:1;min-height:340px;position:relative}
+#map svg{width:100%;height:100%;display:block;cursor:grab}
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:6px 10px;border-top:1px solid var(--line);font:12px var(--cond);color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.legend i.ring{background:transparent!important;border:2px solid var(--faint)}
+.legend i.sq{border-radius:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;overflow:auto;min-height:0}
+.panel-inner{padding:16px 18px 28px;display:flex;flex-direction:column;gap:14px}
+.eyebrow{font:600 10.5px/1 var(--cond);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.fn-name{font:600 19px/1.25 var(--mono);word-break:break-all;margin:4px 0 0}
+.intent{font-size:15px;line-height:1.45;margin:0;max-width:65ch}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font:600 11px/1 var(--cond);letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;border-radius:3px;background:var(--sunk);color:var(--muted)}
+.pill.high{background:var(--high-soft);color:var(--high)} .pill.medium{background:var(--med-soft);color:var(--med)} .pill.low{background:var(--low-soft);color:var(--low)}
+.pill.inf{background:transparent;border:1px dashed var(--faint)}
+.showbox{border-left:3px solid var(--high);background:var(--high-soft);padding:10px 12px;border-radius:0 4px 4px 0}
+.showbox b{font:600 14px/1.35 var(--cond);display:block}
+.showbox p{margin:4px 0 0;font-size:13px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;font-variant-numeric:tabular-nums}
+.fact{background:var(--ground);border-radius:4px;padding:7px 9px}
+.fact b{display:block;font:600 16px/1.1 var(--cond)}
+.fact span{font:11px var(--cond);color:var(--muted);letter-spacing:.03em}
+.timeline{display:flex;flex-direction:column;gap:4px}
+.tl-bar{position:relative;height:30px;border-bottom:1px solid var(--line)}
+.tl-dot{position:absolute;bottom:-5px;width:9px;height:9px;border-radius:50%;background:var(--accent);transform:translateX(-50%);border:2px solid var(--surface)}
+.tl-dot.fix{background:var(--high)} .tl-dot.cleanup{background:var(--faint)} .tl-dot.pre{background:var(--ink)}
+.tl-axis{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--faint)}
+details.sec{border-top:1px solid var(--line);padding-top:10px}
+details.sec>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary .n{font:500 11px var(--mono);color:var(--faint);width:1.6em}
+details.sec>summary h3{font:600 14.5px/1.3 var(--cond);margin:0;flex:1}
+details.sec>summary .cnt{font:12px var(--mono);color:var(--muted)}
+details.sec>summary::after{content:"+";font:500 14px var(--mono);color:var(--muted)}
+details.sec[open]>summary::after{content:"−"}
+.claims{display:flex;flex-direction:column;gap:12px;margin:10px 0 4px 2.2em}
+.claim p{margin:0 0 6px;max-width:68ch}
+.claim .meta{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+.ev{display:flex;flex-direction:column;gap:5px}
+.evi{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:12.5px;background:var(--ground);border-radius:4px;padding:6px 8px}
+.evi .ty{font:600 10px/1.6 var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.evi .ref{font:12px var(--mono);word-break:break-all}
+.evi .ref .ok{color:var(--low);font-weight:600}
+.evi .ref .bad{color:var(--high);font-weight:600}
+.evi q{grid-column:2;font:12.5px/1.45 var(--mono);color:var(--muted);quotes:"“" "”";word-break:break-word}
+.empty{color:var(--faint);font-style:italic;margin:6px 0 0 2.2em}
+.risk{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;background:var(--ground);border-radius:4px;padding:8px 10px}
+.risk .lbl{font:600 10.5px/1.6 var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);max-width:65ch}
+.factor{font:12.5px var(--mono);color:var(--muted)}
+ul.plain{margin:0;padding-left:1.1em}
+.pool{display:flex;flex-direction:column;gap:5px}
+.hint{color:var(--muted);font-size:13px}
+@media (max-width:900px){
+  .app{height:auto;grid-template-rows:auto}
+  .main{grid-template-columns:1fr}
+  #map{height:62vh;flex:none}
+  .panel{max-height:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Quirks Atlas</h1>
+      <p>System map of <code>drivers/pci/quirks.c</code> at <code id="head"></code> · static analysis + git history + evidence-cited reasoning</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+  <section class="showcases" id="showcases" aria-label="Showcase quirks"></section>
+  <div class="main">
+    <section class="mapwrap" aria-label="System map">
+      <div class="toolbar">
+        <input type="search" id="q" placeholder="Find a function, device ID or effect…" aria-label="Search nodes">
+        <label class="chip"><input type="checkbox" id="onlyAnalysed"> Analysed only</label>
+        <label class="chip"><input type="checkbox" id="showDevices"> Device IDs</label>
+        <label class="chip"><input type="checkbox" id="showPhases" checked> Fixup phases</label>
+      </div>
+      <div id="map"></div>
+      <div class="legend">
+        <span><i style="background:var(--high)"></i>High</span>
+        <span><i style="background:var(--med)"></i>Medium</span>
+        <span><i style="background:var(--low)"></i>Low</span>
+        <span><i class="ring"></i>Heuristic score only (not yet analysed)</span>
+        <span><i class="sq" style="background:var(--effect)"></i>Side effect</span>
+        <span><i class="sq" style="background:var(--iface)"></i>Interface</span>
+        <span><i class="sq" style="background:var(--core)"></i>Core change it compensates for</span>
+      </div>
+    </section>
+    <aside class="panel" id="panel" aria-live="polite"><div class="panel-inner" id="detail"></div></aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+const DATA = /*__DATA__*/null;
+const GH = "https://github.com/torvalds/linux";
+const HEAD = DATA.meta.commit;
+const SECTIONS = [
+  ["architecture_rationale","Why it is designed this way"],
+  ["intentional_vs_accidental","Intentional vs. likely accidental"],
+  ["hardware_timing_dependencies","Hardware & timing assumptions"],
+  ["suspected_workarounds","Suspected workarounds"],
+  ["external_interfaces","Interfaces used by other parts of the system"],
+  ["compatibility_certification_sensitive","Must remain unchanged"],
+  ["criticality","Criticality"],
+  ["historical_lessons","Clues from history"]];
+const byId = new Map(DATA.nodes.map(n=>[n.id,n]));
+const fnNodes = DATA.nodes.filter(n=>n.id.startsWith("fn:"));
+const analysed = fnNodes.filter(n=>n.analysis);
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const level = n => n.analysis ? n.analysis.criticality.level : n.heuristic_criticality?.level;
+const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const colorFor = n => {
+  if (n.kind==="effect") return "var(--effect)";
+  if (n.kind==="interface") return "var(--iface)";
+  if (n.kind==="core_change") return "var(--core)";
+  if (n.kind==="device") return "var(--dev)";
+  if (n.kind==="phase") return "var(--ink)";
+  return {high:"var(--high)",medium:"var(--med)",low:"var(--low)"}[level(n)];
+};
+
+document.getElementById("head").textContent = HEAD.slice(0,12);
+const totalEv = analysed.reduce((a,n)=>a+(n.analysis_meta?.verification?.evidence_items||0),0);
+const okEv = analysed.reduce((a,n)=>a+(n.analysis_meta?.verification?.verified||0),0);
+document.getElementById("stats").innerHTML = [
+  [DATA.meta.counts.functions,"functions"],[DATA.meta.counts.fixup_registrations,"fixup registrations"],
+  [DATA.meta.counts.commits_in_history,"commits mined"],[analysed.length,"quirks analysed"],
+  [`${okEv}/${totalEv}`,"quotes verified"]].map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+
+// showcases
+const scs = analysed.filter(n=>n.analysis_meta?.showcase);
+document.getElementById("showcases").innerHTML = scs.map(n=>`<button class="sc" data-id="${n.id}">
+  <span class="k">Showcase</span><span class="t">${esc(n.analysis_meta.showcase.title)}</span><span class="f">${esc(n.name)}</span></button>`).join("");
+document.getElementById("showcases").addEventListener("click",e=>{const b=e.target.closest(".sc"); if(b) select(b.dataset.id,true);});
+
+// ---------- links ----------
+function refLink(ev){
+  const r = ev.ref||"";
+  let m;
+  if (ev.type==="commit" && (m=r.match(/commit:([0-9a-f]+)/))) return `<a href="${GH}/commit/${m[1]}" target="_blank" rel="noopener">${m[1]}</a>`;
+  if ((m=r.match(/^([\w./-]+):L(\d+)(?:-L(\d+))?$/))) {
+    const path = m[1]==="quirks.c" ? "drivers/pci/quirks.c" : m[1];
+    const anchor = m[3] ? `#L${m[2]}-L${m[3]}` : `#L${m[2]}`;
+    return `<a href="${GH}/blob/${HEAD}/${path}${anchor}" target="_blank" rel="noopener">${esc(r)}</a>`;
+  }
+  if (/^https?:/.test(r)) return `<a href="${esc(r)}" target="_blank" rel="noopener">${esc(r)}</a>`;
+  return esc(r);
+}
+function evHTML(ev){
+  const v = ev.verified===true ? `<span class="ok" title="Quote matched verbatim against git history / source">✓ verified</span> ` : ev.verified===false ? `<span class="bad">✗ unverified</span> ` : "";
+  const showQ = ev.excerpt && ev.excerpt!==ev.ref;
+  return `<div class="evi"><span class="ty">${esc(ev.type.replace("_"," "))}</span><span class="ref">${v}${refLink(ev)}</span>${showQ?`<q>${esc(ev.excerpt)}</q>`:""}</div>`;
+}
+function claimHTML(c){
+  const cls = c.classification ? `<span class="pill">${esc(c.classification.replace("_"," "))}</span>` : "";
+  return `<div class="claim"><div class="meta"><span class="pill ${c.confidence}">${c.confidence} confidence</span>
+    <span class="pill ${c.basis==="inference"?"inf":""}">${c.basis==="inference"?"inference":"evidence-backed"}</span>${cls}</div>
+    <p>${esc(c.claim)}</p><div class="ev">${(c.evidence||[]).map(evHTML).join("")}</div></div>`;
+}
+
+// ---------- timeline ----------
+function timelineHTML(h){
+  if(!h.timeline.length) return "";
+  const y0 = 2005, y1 = 2027;
+  const x = d => ((+d.slice(0,4) + (+d.slice(5,7)-1)/12) - y0)/(y1-y0)*100;
+  const dots = h.timeline.map(t=>`<span class="tl-dot ${t.short==="1da177e4c3f4"?"pre":t.fixes?"fix":t.cleanup?"cleanup":""}" style="left:${x(t.date)}%" title="${esc(t.date+"  "+t.short+"  "+t.subject)}"></span>`).join("");
+  return `<div class="timeline"><div class="eyebrow">Change history · ${h.n_commits} commits (${h.n_substantive} substantive)</div>
+   <div class="tl-bar">${dots}</div><div class="tl-axis"><span>2005</span><span>2010</span><span>2015</span><span>2020</span><span>2026</span></div>
+   <div class="hint">Red = carries a Fixes: tag · grey = cleanup · black = pre-git import (rationale older than 2005)</div></div>`;
+}
+
+// ---------- detail ----------
+function render(n){
+  const d = document.getElementById("detail");
+  if(!n){ d.innerHTML = introHTML(); return; }
+  if(!n.id.startsWith("fn:")){ d.innerHTML = otherHTML(n); return; }
+  const s=n.static, h=n.history, a=n.analysis, m=n.analysis_meta||{};
+  const lvl = level(n);
+  const phases=[...new Set(s.fixups.map(f=>f.phase))];
+  const writes=s.config_access.filter(x=>x.op==="write").length;
+  let html = `<div><div class="eyebrow">${esc(n.kind.replace("_"," "))} · lines ${n.loc.start}–${n.loc.end}</div>
+    <h2 class="fn-name"><a href="${GH}/blob/${HEAD}/drivers/pci/quirks.c#L${n.loc.start}-L${n.loc.end}" target="_blank" rel="noopener">${esc(n.name)}</a></h2></div>`;
+  if (m.one_line_intent) html += `<p class="intent">${esc(m.one_line_intent)}</p>`;
+  html += `<div class="pills"><span class="pill ${lvl}">${lvl} criticality${a?" · "+esc(a.criticality.category):""}</span>
+    <span class="pill">${a?"reasoned + verified":"heuristic only"}</span>${h.origin_pre_git?'<span class="pill">pre-git origin</span>':""}</div>`;
+  if (m.showcase) html += `<div class="showbox"><b>${esc(m.showcase.title)}</b><p>${esc(m.showcase.hook)}</p></div>`;
+  html += `<div class="facts">
+    <div class="fact"><b>${s.fixups.length}</b><span>fixup registrations</span></div>
+    <div class="fact"><b>${phases.join(", ")||"—"}</b><span>phase</span></div>
+    <div class="fact"><b>${writes}</b><span>config-space writes</span></div>
+    <div class="fact"><b>${s.delays.length+s.timing.length}</b><span>delay / timing sites</span></div>
+    <div class="fact"><b>${h.n_stable}</b><span>stable backports</span></div>
+    <div class="fact"><b>${h.fixes_chain.length}</b><span>Fixes: tags</span></div></div>`;
+  html += timelineHTML(h);
+  if (a){
+    SECTIONS.forEach(([k,label],i)=>{
+      let items, body;
+      if (k==="criticality"){ items=[a.criticality.reasoning]; }
+      else items=a[k]||[];
+      body = items.length ? `<div class="claims">${items.map(claimHTML).join("")}</div>` : `<p class="empty">No evidence found for this section.</p>`;
+      const cnt = k==="criticality" ? `${a.criticality.level} · ${a.criticality.category}` : `${items.length} claim${items.length===1?"":"s"}`;
+      html += `<details class="sec" ${i<2||k==="criticality"||k==="historical_lessons"?"open":""}><summary><span class="n">${i+1}</span><h3>${label}</h3><span class="cnt">${cnt}</span></summary>${body}</details>`;
+    });
+    if ((m.change_risks||[]).length) html += `<details class="sec" open><summary><span class="n">→</span><h3>If you change it…</h3><span class="cnt">${m.change_risks.length}</span></summary><div class="claims">${
+      m.change_risks.map(r=>`<div class="risk"><span class="lbl">If you</span><span>${esc(r.if_you)}</span><span class="lbl">Then</span><span>${esc(r.then)} <span class="pill ${r.confidence}">${r.confidence}</span></span><span></span><div class="ev">${(r.evidence||[]).map(evHTML).join("")}</div></div>`).join("")}</div></details>`;
+    if ((m.open_questions||[]).length) html += `<details class="sec"><summary><span class="n">?</span><h3>Open questions</h3><span class="cnt">${m.open_questions.length}</span></summary><ul class="plain claims">${m.open_questions.map(q=>`<li>${esc(q)}</li>`).join("")}</ul></details>`;
+    html += `<p class="note">Reasoning: ${esc(m.generated_by||"")}. ${m.verification?`${m.verification.verified} of ${m.verification.evidence_items} quoted excerpts matched verbatim against git history and source by validate.py.`:""}</p>`;
+  } else {
+    html += `<details class="sec" open><summary><span class="n">·</span><h3>Heuristic criticality factors</h3><span class="cnt">score ${n.heuristic_criticality.score}</span></summary>
+      <ul class="plain claims">${n.heuristic_criticality.factors.map(f=>`<li class="factor">${esc(f)}</li>`).join("")||"<li>No risk factors found</li>"}</ul></details>
+      <details class="sec" open><summary><span class="n">·</span><h3>Evidence pool</h3><span class="cnt">${n.evidence_pool.length} items</span></summary>
+      <div class="pool claims">${n.evidence_pool.map(evHTML).join("")}</div></details>
+      <p class="note">Not yet analysed. Run <code>reason.py</code> on this function to get the eight sections; the evidence pool above is exactly what the model would receive.</p>`;
+  }
+  const rel = DATA.edges.filter(e=>e.source===n.id||e.target===n.id).filter(e=>e.type!=="registers_for");
+  if (rel.length) html += `<details class="sec"><summary><span class="n">⇄</span><h3>Dependencies in the map</h3><span class="cnt">${rel.length}</span></summary><ul class="plain claims">${
+    rel.map(e=>{const o=byId.get(e.source===n.id?e.target:e.source);return `<li><span class="factor">${e.source===n.id?e.type+" →":"← "+e.type}</span> <a href="#" data-go="${o.id}">${esc(o.name)}</a></li>`}).join("")}</ul></details>`;
+  d.innerHTML = html;
+  document.getElementById("panel").scrollTop = 0;
+}
+function otherHTML(n){
+  const rel = DATA.edges.filter(e=>e.source===n.id||e.target===n.id);
+  const desc = {effect:`A piece of state that quirks change. Scope: ${n.scope||""}.`,interface:"An entry point through which the rest of the kernel reaches quirks.c.",
+    core_change:"A change elsewhere in the kernel that broke hardware; the linked quirks exist to compensate (from Fixes: tags).",
+    device:"A PCI vendor/device ID that a quirk is registered for.",phase:"The point in the device lifecycle at which registered quirks run."}[n.kind]||"";
+  return `<div><div class="eyebrow">${esc(n.kind.replace("_"," "))}</div><h2 class="fn-name">${esc(n.name)}</h2></div><p class="note">${desc}</p>
+   <ul class="plain">${rel.map(e=>{const o=byId.get(e.source===n.id?e.target:e.source);return `<li><span class="factor">${esc(e.type)}</span> <a href="#" data-go="${o.id}">${esc(o.name)}</a></li>`}).join("")}</ul>`;
+}
+function introHTML(){
+  return `<div><div class="eyebrow">How to read this map</div><h2 class="fn-name" style="font-family:var(--cond)">Pick a node to see why it exists</h2></div>
+  <p class="intent">Each circle is a function in quirks.c. Colour is criticality. Filled circles have been through the reasoning layer, so every claim cites a comment, a line of code or a commit, and the quote has been checked word for word against git. Hollow circles have a heuristic score only.</p>
+  <p class="note">Squares are what the quirks touch: system-wide side effects (like <code>pci_no_msi</code>), interfaces the PCI core calls into, and core kernel changes that some quirks exist to compensate for. Turn on device IDs to see the 690 vendor/device pairs the quirks are registered for.</p>
+  <p class="note">Start with a showcase above, or search for <code>msleep</code>-style names such as <code>delay_250ms_after_flr</code>.</p>`;
+}
+document.getElementById("detail").addEventListener("click",e=>{const a=e.target.closest("[data-go]"); if(a){e.preventDefault(); select(a.dataset.go,true);}});
+
+// ---------- graph ----------
+const svg = d3.select("#map").append("svg").attr("role","img").attr("aria-label","Force-directed map of quirks.c");
+const root = svg.append("g");
+const linkG = root.append("g"), nodeG = root.append("g"), labelG = root.append("g");
+const zoom = d3.zoom().scaleExtent([0.15,5]).on("zoom",e=>root.attr("transform",e.transform));
+svg.call(zoom);
+let sim, current=null, visible;
+
+function radius(n){
+  if(n.kind==="device") return 2.5;
+  if(n.kind==="phase") return 9;
+  if(!n.id.startsWith("fn:")) return 6;
+  return 4 + Math.min(10, Math.sqrt(n.static.fixups.length)*1.6) + (n.analysis?2:0);
+}
+function build(){
+  const onlyA=document.getElementById("onlyAnalysed").checked, dev=document.getElementById("showDevices").checked, ph=document.getElementById("showPhases").checked;
+  const keep = new Set();
+  DATA.nodes.forEach(n=>{
+    if(n.id.startsWith("fn:")){ if(!onlyA||n.analysis) keep.add(n.id); }
+    else if(n.kind==="device"){ if(dev) keep.add(n.id); }
+    else if(n.kind==="phase"){ if(ph) keep.add(n.id); }
+    else keep.add(n.id);
+  });
+  let links = DATA.edges.filter(e=>keep.has(e.source)&&keep.has(e.target)).map(e=>({...e}));
+  // drop orphans of non-function kinds
+  const touched=new Set(); links.forEach(l=>{touched.add(l.source);touched.add(l.target)});
+  const nodes = DATA.nodes.filter(n=>keep.has(n.id) && (n.id.startsWith("fn:")&&(!onlyA||n.analysis) || touched.has(n.id))).map(n=>{const o=visible?.get?.(n.id); return Object.assign({ref:n,id:n.id},o?{x:o.x,y:o.y}:{})});
+  const ids=new Set(nodes.map(n=>n.id)); links=links.filter(l=>ids.has(l.source)&&ids.has(l.target));
+  visible = new Map(nodes.map(n=>[n.id,n]));
+  const {width,height}=document.getElementById("map").getBoundingClientRect();
+  svg.attr("viewBox",[-width/2,-height/2,width,height]);
+
+  const L = linkG.selectAll("line").data(links,d=>d.source+"|"+d.target+"|"+d.type).join("line")
+    .attr("stroke","var(--edge)").attr("stroke-opacity",d=>d.type==="registers_for"?.25:d.type==="runs_in"?.18:.6)
+    .attr("stroke-width",d=>d.type==="compensates_for"?1.6:1).attr("stroke-dasharray",d=>d.type==="compensates_for"?"3 2":null);
+  const N = nodeG.selectAll("path").data(nodes,d=>d.id).join("path")
+    .attr("d",d=>{const r=radius(d.ref); return d.ref.id.startsWith("fn:")||d.ref.kind==="device"||d.ref.kind==="phase" ? d3.symbol(d3.symbolCircle, Math.PI*r*r)() : d3.symbol(d3.symbolSquare,(r*1.8)**2)();})
+    .attr("fill",d=>d.ref.id.startsWith("fn:")&&!d.ref.analysis?"var(--surface)":d.ref.kind==="phase"?"var(--surface)":colorFor(d.ref))
+    .attr("stroke",d=>colorFor(d.ref)).attr("stroke-width",d=>d.ref.kind==="phase"?2:d.ref.id.startsWith("fn:")&&!d.ref.analysis?1.8:1)
+    .attr("fill-opacity",d=>d.ref.id.startsWith("fn:")&&!d.ref.analysis?.0:1)
+    .style("cursor","pointer")
+    .on("click",(e,d)=>select(d.id,false));
+  N.selectAll("title").data(d=>[d]).join("title").text(d=>d.ref.name);
+  N.call(d3.drag().on("start",(e,d)=>{if(!e.active)sim.alphaTarget(.2).restart();d.fx=d.x;d.fy=d.y}).on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y}).on("end",(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null}));
+  const labelled = nodes.filter(d=>d.ref.kind==="phase"||d.ref.analysis||d.ref.kind==="interface");
+  const T = labelG.selectAll("text").data(labelled,d=>d.id).join("text")
+    .text(d=>d.ref.kind==="phase"?d.ref.name.replace("fixup phase: ",""):d.ref.name)
+    .attr("font-family","IBM Plex Sans Condensed, sans-serif").attr("font-size",d=>d.ref.kind==="phase"?12:10)
+    .attr("font-weight",d=>d.ref.kind==="phase"?700:500).attr("fill","var(--ink)").attr("fill-opacity",d=>d.ref.kind==="phase"?.9:.75)
+    .attr("paint-order","stroke").attr("stroke","var(--surface)").attr("stroke-width",3).attr("pointer-events","none");
+
+  sim?.stop();
+  sim = d3.forceSimulation(nodes)
+    .force("link",d3.forceLink(links).id(d=>d.id).distance(l=>l.type==="registers_for"?18:l.type==="runs_in"?90:55).strength(l=>l.type==="runs_in"?.05:.4))
+    .force("charge",d3.forceManyBody().strength(d=>d.ref.kind==="device"?-6:d.ref.kind==="phase"?-400:-60))
+    .force("collide",d3.forceCollide(d=>radius(d.ref)+1.5))
+    .force("x",d3.forceX().strength(.04)).force("y",d3.forceY().strength(.05))
+    .on("tick",()=>{
+      L.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+      N.attr("transform",d=>`translate(${d.x},${d.y})`);
+      T.attr("x",d=>d.x+radius(d.ref)+3).attr("y",d=>d.y+3);
+    });
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches){ sim.stop(); for(let i=0;i<300;i++) sim.tick(); sim.on("tick")(); }
+  highlight();
+}
+function highlight(){
+  const q=document.getElementById("q").value.trim().toLowerCase();
+  const nb=new Set();
+  if(current){ nb.add(current); DATA.edges.forEach(e=>{if(e.source===current)nb.add(e.target); if(e.target===current)nb.add(e.source);}); }
+  nodeG.selectAll("path").attr("opacity",d=>{
+    const hit = !q || d.ref.name.toLowerCase().includes(q) || (d.ref.vendor||"").toLowerCase().includes(q);
+    if(current) return nb.has(d.id)?1:.15;
+    return hit?1:.12;
+  }).attr("stroke-width",d=>d.id===current?3.5:(d.ref.kind==="phase"?2:d.ref.id.startsWith("fn:")&&!d.ref.analysis?1.8:1));
+  linkG.selectAll("line").attr("opacity",l=>!current?1:(l.source.id===current||l.target.id===current)?1:.08);
+}
+function select(id,center){
+  current = id===current&&!center ? null : id;
+  render(current?byId.get(current):null);
+  highlight();
+  if(center&&current){
+    const n=visible.get(current);
+    if(!n){ document.getElementById("onlyAnalysed").checked=false; if(byId.get(id).kind==="device") document.getElementById("showDevices").checked=true; build(); setTimeout(()=>select(id,true),600); return; }
+    if(n.x!=null) svg.transition().duration(600).call(zoom.transform,d3.zoomIdentity.scale(1.6).translate(-n.x,-n.y));
+  }
+}
+["onlyAnalysed","showDevices","showPhases"].forEach(i=>document.getElementById(i).addEventListener("change",build));
+document.getElementById("q").addEventListener("input",()=>{current=null;highlight();});
+document.getElementById("q").addEventListener("keydown",e=>{
+  if(e.key!=="Enter")return; const q=e.target.value.trim().toLowerCase(); if(!q)return;
+  const hit=fnNodes.find(n=>n.name.toLowerCase()===q)||fnNodes.find(n=>n.name.toLowerCase().includes(q))||DATA.nodes.find(n=>n.name.toLowerCase().includes(q));
+  if(hit) select(hit.id,true);
+});
+build();
+const first = scs.find(n=>n.name==="pcie_failed_link_retrain")||analysed[0];
+render(first);
+svg.call(zoom.transform, d3.zoomIdentity.scale(0.62));
+let rt; addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{const {width,height}=document.getElementById("map").getBoundingClientRect();svg.attr("viewBox",[-width/2,-height/2,width,height]);},150)});
+</script>

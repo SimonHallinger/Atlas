@@ -1,0 +1,151 @@
+{
+ "function": "quirk_intel_pcie_pm",
+ "one_line_intent": "For certain Intel PCIe chipsets, globally raise the D3hot delay to 120 ms and forbid D1/D2 power states.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Some Intel PCIe chipsets reset the device on any D-state change, so D1/D2 (which should keep state) are unsafe.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:ffadcc2ff42e",
+      "excerpt": "some Intel PCIE chipsets will cause a device reset to occur.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Setting pci_pm_d3hot_delay is a SYSTEM-WIDE side effect triggered by one device - probably intended, but it slows every device's D3 transitions.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2015",
+      "excerpt": "pci_pm_d3hot_delay = 120;",
+      "verified": true
+     }
+    ],
+    "classification": "unclear"
+   },
+   {
+    "claim": "The value 120 ms has no documented source in git history.",
+    "confidence": "medium",
+    "basis": "inference",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2015",
+      "excerpt": "pci_pm_d3hot_delay = 120;",
+      "verified": true
+     }
+    ],
+    "classification": "unclear"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Timing assumption: 120 ms D3hot delay (spec is 10 ms).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2015",
+      "excerpt": "pci_pm_d3hot_delay = 120;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Chipset workaround with minimal documentation.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L2010-L2011",
+      "excerpt": "have trouble with downstream device power management.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Writes global pci_pm_d3hot_delay consumed by PCI PM for all devices.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2015",
+      "excerpt": "pci_pm_d3hot_delay = 120;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Driver state lost across D1/D2 if removed.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:ffadcc2ff42e",
+      "excerpt": "any state information that the driver will expect to be present coming from a D1 or D2 state will have been cleared.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Global timing side effect on a whole system; loss of device state if removed.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2015",
+      "excerpt": "pci_pm_d3hot_delay = 120;",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Only rename-level changes since 2006 - untouched but globally impactful code.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3789af9a13e5",
+      "excerpt": "Rename pci_dev.d3_delay to d3hot_delay",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 9,
+  "verified": 9,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

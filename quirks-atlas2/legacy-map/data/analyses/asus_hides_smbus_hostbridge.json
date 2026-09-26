@@ -1,0 +1,194 @@
+{
+ "function": "asus_hides_smbus_hostbridge",
+ "one_line_intent": "On specific ASUS/HP/Compaq/Samsung boards whose BIOS hides the Intel ICH SMBus controller, flag the board so a second quirk can re-enable ('unhide') it.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Vendors hid the SMBus PCI device (reportedly to avoid an extra device in the Windows 98 device manager); Linux needs it for sensors/SPD access, so the quirk re-enables it on known boards.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1484-L1494",
+      "excerpt": "The myth is that Asus said that they do not want the users to be irritated by just another PCI Device in the Win98 device manager.",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "Two-step design because the hidden SMBus device has no subsystem ID: the host bridge (or on-board VGA) identifies the board, and the actual unhide happens later on the LPC bridge.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1484-L1494",
+      "excerpt": "Unfortunately, this device has no subvendor/subdevice ID. So it becomes necessary to do this tweak in two steps",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Each subsystem ID is an individually tested board; the list is intentionally conservative.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:a99acc832de1",
+      "excerpt": "adding new IDs to this SMBus unhiding quirk table should be done only with great care",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Toshiba laptops are deliberately absent although they once were in the list.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:9208ee8286ea",
+      "excerpt": "Thus it is not safe to unhide it and let Linux access it. We have to leave the SMBus hidden.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Depends on Pentium 4-era Intel chipsets (82845, 82855, 82865, 82915GM...) and specific board subsystem IDs.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L1629",
+      "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82845_HB,\tasus_hides_smbus_hostbridge);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Works around a firmware policy (BIOS hiding a device), not a silicon bug.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1484-L1494",
+      "excerpt": "the SMBus PCI Device within the ICH2/4 southbridge is not activated",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Shares state with other quirks through the file-scope variable asus_hides_smbus; the consumer quirk that actually unhides the device is elsewhere in the file.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L1520",
+      "excerpt": "asus_hides_smbus = 1;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Adding a board where SMM or ACPI firmware uses the SMBus creates concurrent unsynchronised access to the bus that also carries thermal management. The in-code instruction is to disassemble the DSDT first.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1495-L1508",
+      "excerpt": "If you are about to add an entry in the table below, please first disassemble the DSDT and double-check that there is no code accessing the SMBus.",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:a99acc832de1",
+      "excerpt": "the SMBus is used by ACPI for thermal management on the nc6120, so Linux should not attach a native driver to it",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "safety",
+   "reasoning": {
+    "claim": "A wrong entry does not fail loudly: it lets the OS and firmware drive the thermal-management bus concurrently, which the kernel authors describe as having 'potentially bad effects'. In a safety context, a thermal controller corrupted by bus contention is a hazard.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1495-L1500",
+      "excerpt": "could cause unsynchronized concurrent accesses to the SMBus registers, with potentially bad effects",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Two separate removals (Toshiba 2007, HP nx6110 2008) prove that 'it worked on my board' is insufficient evidence for this table - a sibling model with the same subsystem ID behaved differently.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:a99acc832de1",
+      "excerpt": "The HP Compaq nc6120 has the same PCI sub-device ID as the nx6110",
+      "verified": true
+     },
+     {
+      "type": "bug_report",
+      "ref": "http://bugzilla.kernel.org/show_bug.cgi?id=10245",
+      "excerpt": "http://bugzilla.kernel.org/show_bug.cgi?id=10245",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [
+  {
+   "if_you": "add a new board ID",
+   "then": "possible race with SMM/ACPI thermal management on that board",
+   "confidence": "high",
+   "evidence": [
+    {
+     "type": "comment",
+     "ref": "quirks.c:L1495-L1508",
+     "excerpt": "if SMM is accessing the Intel SMBus, this is a very good reason to leave it hidden.",
+     "verified": true
+    }
+   ]
+  }
+ ],
+ "open_questions": [],
+ "showcase": {
+  "title": "A board list that is dangerous to extend",
+  "hook": "Looks like a harmless whitelist of subsystem IDs. History: two entries were removed because unhiding the SMBus let Linux race with SMM/ACPI firmware doing thermal management. The comment above the function is a safety instruction, not documentation."
+ },
+ "verification": {
+  "evidence_items": 13,
+  "verified": 13,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

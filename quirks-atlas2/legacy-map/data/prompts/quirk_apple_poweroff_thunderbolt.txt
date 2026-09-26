@@ -1,0 +1,272 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_apple_poweroff_thunderbolt",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 3887,
+  "end": 3929
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_SUSPEND_LATE",
+   "phase": "suspend_late",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_CACTUS_RIDGE_4C",
+   "class": null,
+   "line": 3930,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 1,
+ "calls_local": [],
+ "calls_external": [
+  "ACPI_FAILURE",
+  "ACPI_HANDLE",
+  "acpi_execute_simple_method",
+  "acpi_get_handle",
+  "msleep",
+  "pci_info",
+  "pci_pcie_type",
+  "pm_suspend_via_firmware"
+ ],
+ "called_by": [],
+ "config_access": [],
+ "delays": [
+  {
+   "fn": "msleep",
+   "value": "300",
+   "line": 3925
+  }
+ ],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 6,
+  "first": "2014-06-03",
+  "last": "2021-05-21",
+  "origin_pre_git": false,
+  "n_stable": 1,
+  "fixes_chain": [
+   {
+    "by": "4694ae373dc2",
+    "fixes": "1df5172c5c25 (\"PCI: Suspend/resume quirks for Apple thunderbolt\")",
+    "fixes_hash": "1df5172c5c25",
+    "in_this_function": true
+   }
+  ]
+ }
+}
+
+SOURCE:
+```c
+3887: static void quirk_apple_poweroff_thunderbolt(struct pci_dev *dev)
+3888: {
+3889: 	acpi_handle bridge, SXIO, SXFP, SXLV;
+3890: 
+3891: 	if (!x86_apple_machine)
+3892: 		return;
+3893: 	if (pci_pcie_type(dev) != PCI_EXP_TYPE_UPSTREAM)
+3894: 		return;
+3895: 
+3896: 	/*
+3897: 	 * SXIO/SXFP/SXLF turns off power to the Thunderbolt controller.
+3898: 	 * We don't know how to turn it back on again, but firmware does,
+3899: 	 * so we can only use SXIO/SXFP/SXLF if we're suspending via
+3900: 	 * firmware.
+3901: 	 */
+3902: 	if (!pm_suspend_via_firmware())
+3903: 		return;
+3904: 
+3905: 	bridge = ACPI_HANDLE(&dev->dev);
+3906: 	if (!bridge)
+3907: 		return;
+3908: 
+3909: 	/*
+3910: 	 * SXIO and SXLV are present only on machines requiring this quirk.
+3911: 	 * Thunderbolt bridges in external devices might have the same
+3912: 	 * device ID as those on the host, but they will not have the
+3913: 	 * associated ACPI methods. This implicitly checks that we are at
+3914: 	 * the right bridge.
+3915: 	 */
+3916: 	if (ACPI_FAILURE(acpi_get_handle(bridge, "DSB0.NHI0.SXIO", &SXIO))
+3917: 	    || ACPI_FAILURE(acpi_get_handle(bridge, "DSB0.NHI0.SXFP", &SXFP))
+3918: 	    || ACPI_FAILURE(acpi_get_handle(bridge, "DSB0.NHI0.SXLV", &SXLV)))
+3919: 		return;
+3920: 	pci_info(dev, "quirk: cutting power to Thunderbolt controller...\n");
+3921: 
+3922: 	/* magic sequence */
+3923: 	acpi_execute_simple_method(SXIO, NULL, 1);
+3924: 	acpi_execute_simple_method(SXFP, NULL, 0);
+3925: 	msleep(300);
+3926: 	acpi_execute_simple_method(SXLV, NULL, 0);
+3927: 	acpi_execute_simple_method(SXIO, NULL, 0);
+3928: 	acpi_execute_simple_method(SXLV, NULL, 0);
+3929: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L3872-L3886",
+  "excerpt": "Apple: Shutdown Cactus Ridge Thunderbolt controller.\n\nOn Apple hardware the Cactus Ridge Thunderbolt controller needs to be\nshutdown before suspend. Otherwise the native host interface (NHI) will not\nbe present after resume if a device was plugged in before suspend.\n\nThe Thunderbolt controller consists of a PCIe switch with downstream\nbridges leading to the NHI and to the tunnel PCI bridges.\n\nThis quirk cuts power to the whole chip. Therefore we have to apply it\nduring suspend_noirq of the upstream bridge.\n\nPower is automagically restored before resume. No action is needed.",
+  "role": "doc"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L3896",
+  "excerpt": "SXIO/SXFP/SXLF turns off power to the Thunderbolt controller.\nWe don't know how to turn it back on again, but firmware does,\nso we can only use SXIO/SXFP/SXLF if we're suspending via\nfirmware.",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L3909",
+  "excerpt": "SXIO and SXLV are present only on machines requiring this quirk.\nThunderbolt bridges in external devices might have the same\ndevice ID as those on the host, but they will not have the\nassociated ACPI methods. This implicitly checks that we are at\nthe right bridge.",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L3922",
+  "excerpt": "magic sequence",
+  "role": "inline"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L3925",
+  "excerpt": "msleep(300);",
+  "role": "delay"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L3930",
+  "excerpt": "DECLARE_PCI_FIXUP_SUSPEND_LATE(PCI_VENDOR_ID_INTEL,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1df5172c5c25",
+  "excerpt": "PCI: Suspend/resume quirks for Apple thunderbolt",
+  "date": "2014-06-03",
+  "author": "Andreas Noever",
+  "message": "PCI: Suspend/resume quirks for Apple thunderbolt\n\nAdd two quirks to support thunderbolt suspend/resume on Apple systems.\nWe need to perform two different actions during suspend and resume:\n\nThe whole controller has to be powered down before suspend. If this is\nnot done then the native host interface device will be gone after resume\nif a thunderbolt device was plugged in before suspending. The controller\nrepresents itself as multiple PCI devices/bridges. To power it down we\nhook into the upstream bridge of the controller and call the magic ACPI\nmethods.  Power will be restored automatically during resume (by the\nfirmware presumably).\n\nDuring resume we have to wait for the native host interface to\nreestablish all pci tunnels. Since there is no parent-child relationship\nbetween the NHI and the bridges we have to explicitly wait for them\nusing device_pm_wait_for_dev. We do this in the resume_noirq phase of\nthe downstream bridges of the controller (which lead into the\nthunderbolt tunnels)."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1d111406c6d9",
+  "excerpt": "PCI: Add Intel Thunderbolt device IDs",
+  "date": "2016-03-20",
+  "author": "Lukas Wunner",
+  "message": "PCI: Add Intel Thunderbolt device IDs\n\nIntel Gen 1 and 2 chips use the same ID for NHI, bridges and switch.  Gen 3\nchips and onward use a distinct ID for the NHI.\n\nNo functional change intended."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:630b3aff8a51",
+  "excerpt": "treewide: Consolidate Apple DMI checks",
+  "date": "2017-08-01",
+  "author": "Lukas Wunner",
+  "message": "treewide: Consolidate Apple DMI checks\n\nWe're about to amend ACPI bus scan with DMI checks whether we're running\non a Mac to support Apple device properties in AML.  The DMI checks are\nperformed for every single device, adding overhead for everything x86\nthat isn't Apple, which is the majority.  Rafael and Andy therefore\nrequest to perform the DMI match only once and cache the result.\n\nOutside of ACPI various other Apple DMI checks exist and it seems\nreasonable to use the cached value there as well.  Rafael, Andy and\nDarren suggest performing the DMI check in arch code and making it\navailable with a header in include/linux/platform_data/x86/.\n\nTo this end, add early_platform_quirks() to arch/x86/kernel/quirks.c\nto perform the DMI check and invoke it from setup_arch().  Switch over\nall existing Apple DMI checks, thereby fixing two deficiencies:\n\n* They are now #defined to false on non-x86 arches and can thus be\n  optimized away if they're located in cross-arch code.\n\n* Some of them only match \"Apple Inc.\" but not \"Apple Computer, Inc.\",\n  which is used by BIOSes released between January 2006 (when the first\n  x86 Macs started shipping) and January 2007 (when the company name\n  changed upon introduction of the iPhone)."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7506dc798993",
+  "excerpt": "PCI: Add wrappers for dev_printk()",
+  "date": "2018-01-18",
+  "author": "Frederick Lawler",
+  "cleanup": true,
+  "message": "PCI: Add wrappers for dev_printk()\n\nAdd PCI-specific dev_printk() wrappers and use them to simplify the code\nslightly.  No functional change intended.\n\n[bhelgaas: squash into one patch]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:82e1719c4cd6",
+  "excerpt": "PCI: Clean up whitespace in quirks.c",
+  "date": "2018-05-02",
+  "author": "Bjorn Helgaas",
+  "cleanup": true,
+  "message": "PCI: Clean up whitespace in quirks.c\n\nClean up whitespace, capitalization, etc. in comments.  No functional\nchange intended."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:4694ae373dc2",
+  "excerpt": "PCI: Leave Apple Thunderbolt controllers on for s2idle or standby",
+  "date": "2021-05-21",
+  "author": "Konstantin Kharlamov",
+  "trailers": {
+   "fixes": [
+    "1df5172c5c25 (\"PCI: Suspend/resume quirks for Apple thunderbolt\")"
+   ],
+   "links": [
+    "https://lore.kernel.org/r/20210520235501.917397-1-Hi-Angel@yandex.ru"
+   ],
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=212767"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Leave Apple Thunderbolt controllers on for s2idle or standby\n\nOn Macbook 2013, resuming from suspend-to-idle or standby resulted in the\nexternal monitor no longer being detected, a stacktrace, and errors like\nthis in dmesg:\n\n  pcieport 0000:06:00.0: can't change power state from D3hot to D0 (config space inaccessible)\n\nThe reason is that we know how to turn power to the Thunderbolt controller\n*off* via the SXIO/SXFP/SXLF methods, but we don't know how to turn power\nback on.  We have to rely on firmware to turn the power back on.\n\nWhen going to the \"suspend-to-idle\" or \"standby\" system sleep states,\nfirmware is not involved either on the suspend side or the resume side, so\nwe can't use SXIO/SXFP/SXLF to turn the power off.\n\nSkip SXIO/SXFP/SXLF when firmware isn't involved in suspend, e.g., when\nwe're going to the \"suspend-to-idle\" or \"standby\" system sleep states."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210520235501.917397-1-Hi-Angel@yandex.ru",
+  "excerpt": "(linked from commit 4694ae373dc2; thread not retrieved)"
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=212767",
+  "excerpt": "(bug tracker entry referenced by commit 4694ae373dc2)"
+ }
+]
+
+Produce the JSON analysis now.

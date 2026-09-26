@@ -1,0 +1,137 @@
+{
+ "function": "quirk_disable_all_msi",
+ "one_line_intent": "Turn off Message Signalled Interrupts for the whole system when certain chipsets are detected.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Chipset controls buses Linux may not know about, so per-bus flags are insufficient; MSI is disabled globally.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L2689-L2693",
+      "excerpt": "Instead of setting the flag on all buses in the machine, simply disable MSI globally.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "System-wide scope is deliberate and accepted as low cost.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:549e15611b4a",
+      "excerpt": "Given the track record and considering the rather minimal impact of MSI, disabling it seems reasonable.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "VIA VT3351/VT3336/VT3364, ATI RS400/RS480, ServerWorks, SiS 761: 2000s-era chipsets whose APIC mis-handles MSI.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:184b812f7da6",
+      "excerpt": "The Via VT3351 APIC does not play well with MSI and unleashes a flood of APIC errors when MSI is used to deliver interrupts.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Chipset-level workaround; in K8M800 case root cause (host bridge vs AHCI) was never determined.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:549e15611b4a",
+      "excerpt": "it's unclear whether the culprit is with the ahci controller or the host bridge.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Calls pci_no_msi(): global state read by the MSI core for every device and driver.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2697",
+      "excerpt": "pci_no_msi();",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Any device driver that assumes MSI availability silently falls back to legacy INTx on these systems.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2698",
+      "excerpt": "pci_warn(dev, \"MSI quirk detected; MSI disabled\\n\");",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Without it: machine hangs or interrupt floods (BCM5906, X11 start).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:162dedd39dcc",
+      "excerpt": "Broadcom BCM5906 Ethernet controllers set up via MSI cause the machine to hang.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "An early attempt to disable MSI per-bridge did not work because the device matched was a host controller, not a bridge; the global approach replaced it.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:ebdf7d399e67",
+      "excerpt": "doesn't work because the host controller is being quirked not a PCI bridge.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

@@ -1,0 +1,139 @@
+{
+ "function": "quirk_passive_release",
+ "one_line_intent": "Enable 'passive release' in the Intel PIIX3 ISA bridge when the BIOS forgot, avoiding problems with 82441FX/PPro MTRRs.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Broken BIOSes neglect to enable passive release, which interacts badly with 82441FX / Pentium Pro MTRRs.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L314-L317",
+      "excerpt": "Deal with broken BIOSes that neglect to enable passive release",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Iterates over all PIIX3 bridges found, triggered by the 82441 host bridge.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L323-L326",
+      "excerpt": "We have to make sure a particular bit is set in the PIIX3 ISA bridge, so we have to go out and find it.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Register 0x82 bit 1 in PIIX3 (1996-era).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L332",
+      "excerpt": "pci_write_config_byte(d, 0x82, dlc);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "BIOS workaround.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L315",
+      "excerpt": "Deal with broken BIOSes",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Registered FINAL and RESUME (bit must be restored after resume).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L337",
+      "excerpt": "DECLARE_PCI_FIXUP_RESUME(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82441,\tquirk_passive_release);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Still exercised today: QEMU emulates 82441FX + PIIX3 (the 'pc' machine type), so this runs in many VMs.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:999da9fd489c",
+      "excerpt": "This makes 'quiet' boot in qemu really quiet.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "low",
+   "category": "business",
+   "reasoning": {
+    "claim": "Ancient hardware; but runs in every QEMU i440FX VM, so removal must be tested there.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:999da9fd489c",
+      "excerpt": "This makes 'quiet' boot in qemu really quiet.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "'Obsolete' hardware is kept alive by emulators - a 1996 chipset quirk still executes on millions of VMs.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:999da9fd489c",
+      "excerpt": "warn softer about enabling passive release",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [
+  "Exact failure mode of missing passive release is not stated (pre-git)."
+ ],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

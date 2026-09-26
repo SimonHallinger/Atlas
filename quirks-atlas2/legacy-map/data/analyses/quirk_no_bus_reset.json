@@ -1,0 +1,182 @@
+{
+ "function": "quirk_no_bus_reset",
+ "one_line_intent": "Mark devices on which a Secondary Bus Reset leaves the device (or link) unusable, so the PCI core never uses bus reset on them.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "One-line helper that sets PCI_DEV_FLAGS_NO_BUS_RESET; all knowledge lives in the registration list and the comments above each group of IDs.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3747",
+      "excerpt": "dev->dev_flags |= PCI_DEV_FLAGS_NO_BUS_RESET;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Each ID group is backed by a specific failure report; nothing here is speculative.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3770-L3776",
+      "excerpt": "config space of the device is never accessible again and typically causes the system to hang or reset when access is attempted",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Some parts need bus reset disabled because their link does not retrain after SBR (NVIDIA GB10, ASM1164); others because the PCIe subsystem disables LTSSM on SBR (TI C667X).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3751-L3752",
+      "excerpt": "the link may not retrain correctly",
+      "verified": true
+     },
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3795-L3797",
+      "excerpt": "The PCIESS automatically disables LTSSM when Secondary Bus Reset is received",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Almost every entry was triggered by VFIO/KVM device assignment, where the hypervisor resets devices between VMs.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:6afb7e26978d",
+      "excerpt": "When using PCI passthrough with this device, the host machine locks up completely when starting the VM",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:e3f4bd3462f6",
+      "excerpt": "When passing the Atheros QCA6174 through to a virtual machine, the VM hangs",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Effect is consumed by the PCI core reset logic (pci_reset_bus / VFIO) through the per-device flag; the quirk has 14 registrations across 7 vendors.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3755",
+      "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_NVIDIA, 0x22CE, quirk_no_bus_reset);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Disabling bus reset has a security/isolation cost: for TI C667X the device state leaks between VMs. Removing the flag restores isolation but reintroduces the hang.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3797-L3799",
+      "excerpt": "With this change, the device can be assigned to VMs with VFIO, but it will leak state between VMs.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Without the flag, a routine VM restart can hang or reset the whole host (Atheros) - a host-level availability failure triggered by a guest action. With the flag, some devices leak state between VMs - an isolation weakness.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:8e2e03179923",
+      "excerpt": "It will lead to instant system reset if the device is assigned via VFIO to a KVM VM.",
+      "verified": true
+     },
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3798-L3799",
+      "excerpt": "it will leak state between VMs",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "The original Atheros regression was bisected to an unrelated core change (Virtual Channel save/restore), whose mechanism was never understood; the quirk hides the symptom.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:c3e59ee4e766",
+      "excerpt": "Andreas bisected it to 425c1b223dac (\"PCI: Add Virtual Channel to save/restore support\"), but we don't understand the mechanism",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "List keeps growing (2015 -> 2026) as new devices are tried in passthrough; three later Atheros additions carry 'Fixes:' pointing at the first, i.e. they are treated as the same bug family.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:9ac0108c2bac",
+      "excerpt": "Similar to the AR93xx series, the AR94xx and the Qualcomm QCA988x also have the same quirk for the Bus Reset.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [
+  {
+   "if_you": "remove an entry",
+   "then": "host lock-up on VM start/stop with that device",
+   "confidence": "high",
+   "evidence": [
+    {
+     "type": "commit",
+     "ref": "commit:6afb7e26978d",
+     "excerpt": "requiring a hard reboot",
+     "verified": true
+    }
+   ]
+  }
+ ],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 13,
+  "verified": 13,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

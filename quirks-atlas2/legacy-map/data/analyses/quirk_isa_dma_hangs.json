@@ -1,0 +1,137 @@
+{
+ "function": "quirk_isa_dma_hangs",
+ "one_line_intent": "Set the global isa_dma_bridge_buggy flag on chipsets where ISA DMA can hang.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "VIA VP2/VP3/MVP3 (and some others) hang with ISA DMA; vendor never explained.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L341-L343",
+      "excerpt": "There may be a workaround but VIA don't answer queries.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "The device list is admittedly uncertain.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L356-L357",
+      "excerpt": "It's not totally clear which chipsets are the problematic ones.",
+      "verified": true
+     }
+    ],
+    "classification": "unclear"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "ISA DMA; x86-32 era.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L351",
+      "excerpt": "isa_dma_bridge_buggy = 1;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Chipset-level issue believed independent of BIOS version.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L345-L346",
+      "excerpt": "This appears to be BIOS not version dependent.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Global flag consumed by ISA DMA users (e.g. floppy, sound).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L351",
+      "excerpt": "isa_dma_bridge_buggy = 1;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Global side effect.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L351",
+      "excerpt": "isa_dma_bridge_buggy = 1;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "low",
+   "category": "business",
+   "reasoning": {
+    "claim": "Legacy ISA DMA hardware only.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L341-L342",
+      "excerpt": "The VIA VP2/VP3/MVP3 seem to have some 'features'.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Pre-git origin; the only rationale is the comment ('ask them for me please -- Alan').",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L342-L343",
+      "excerpt": "If you happen to have good contacts at VIA ask them for me please -- Alan",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

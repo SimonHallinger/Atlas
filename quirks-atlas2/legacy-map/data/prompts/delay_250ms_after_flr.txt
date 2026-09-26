@@ -1,0 +1,218 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "delay_250ms_after_flr",
+ "kind": "reset_method",
+ "lines": {
+  "start": 4158,
+  "end": 4168
+ },
+ "fixup_registrations": [],
+ "n_fixups": 0,
+ "calls_local": [],
+ "calls_external": [
+  "msleep",
+  "pcie_reset_flr"
+ ],
+ "called_by": [],
+ "config_access": [],
+ "delays": [
+  {
+   "fn": "msleep",
+   "value": "250",
+   "line": 4165
+  }
+ ],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [
+  {
+   "table": "pci_dev_reset_methods",
+   "struct": "pci_dev_reset_methods",
+   "line": 4233
+  }
+ ],
+ "non_static": false,
+ "history": {
+  "n_commits": 5,
+  "first": "2018-08-09",
+  "last": "2023-05-07",
+  "origin_pre_git": false,
+  "n_stable": 1,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+4158: static int delay_250ms_after_flr(struct pci_dev *dev, bool probe)
+4159: {
+4160: 	if (probe)
+4161: 		return pcie_reset_flr(dev, PCI_RESET_PROBE);
+4162: 
+4163: 	pcie_reset_flr(dev, PCI_RESET_DO_RESET);
+4164: 
+4165: 	msleep(250);
+4166: 
+4167: 	return 0;
+4168: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4151-L4157",
+  "excerpt": "Some NVMe controllers such as Intel DC P3700 and Solidigm P44 Pro will\ntimeout waiting for ready status to change after NVMe enable if the driver\nstarts interacting with the device too soon after FLR.  A 250ms delay after\nFLR has heuristically proven to produce reliably working results for device\nassignment cases.",
+  "role": "doc"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4165",
+  "excerpt": "msleep(250);",
+  "role": "delay"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:51ba09452d11",
+  "excerpt": "PCI: Delay after FLR of Intel DC P3700 NVMe",
+  "date": "2018-08-09",
+  "author": "Alex Williamson",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.redhat.com/show_bug.cgi?id=1592654"
+   ]
+  },
+  "message": "PCI: Delay after FLR of Intel DC P3700 NVMe\n\nAdd a device-specific reset for Intel DC P3700 NVMe device which exhibits a\ntimeout failure in drivers waiting for the ready status to update after\nNVMe enable if the driver interacts with the device too soon after FLR.  As\nthis has been observed in device assignment scenarios, resolve this with a\ndevice-specific reset quirk to add an additional, heuristically determined,\ndelay after the FLR completes."
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.redhat.com/show_bug.cgi?id=1592654",
+  "excerpt": "(bug tracker entry referenced by commit 51ba09452d11)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:ce00322c2365",
+  "excerpt": "PCI: Work around Huawei Intelligent NIC VF FLR erratum",
+  "date": "2021-05-24",
+  "author": "Chiqijun",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20210414132301.1793-1-chiqijun@huawei.com"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Work around Huawei Intelligent NIC VF FLR erratum\n\npcie_flr() starts a Function Level Reset (FLR), waits 100ms (the maximum\ntime allowed for FLR completion by PCIe r5.0, sec 6.6.2), and waits for the\nFLR to complete.  It assumes the FLR is complete when a config read returns\nvalid data.\n\nWhen we do an FLR on several Huawei Intelligent NIC VFs at the same time,\nfirmware on the NIC processes them serially.  The VF may respond to config\nreads before the firmware has completed its reset processing.  If we bind a\ndriver to the VF (e.g., by assigning the VF to a virtual machine) in the\ninterval between the successful config read and completion of the firmware\nreset processing, the NIC VF driver may fail to load.\n\nPrevent this driver failure by waiting for the NIC firmware to complete its\nreset processing.  Not all NIC firmware supports this feature.\n\n[bhelgaas: commit log]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210414132301.1793-1-chiqijun@huawei.com",
+  "excerpt": "(linked from commit ce00322c2365; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:56f107d7813f",
+  "excerpt": "PCI: Add pcie_reset_flr() with 'probe' argument",
+  "date": "2021-08-17",
+  "author": "Amey Narkhede",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20210817180500.1253-3-ameynarkhede03@gmail.com"
+   ]
+  },
+  "message": "PCI: Add pcie_reset_flr() with 'probe' argument\n\nMost reset methods are of the form \"pci_*_reset(dev, probe)\".  pcie_flr()\nwas an exception because it relied on a separate pcie_has_flr() function\ninstead of taking a \"probe\" argument.\n\nAdd \"pcie_reset_flr(dev, probe)\" to follow the convention.  Remove\npcie_has_flr().\n\nSome pcie_flr() callers that did not use pcie_has_flr() remain.\n\n[bhelgaas: commit log, rework pcie_reset_flr() to use dev->devcap directly]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210817180500.1253-3-ameynarkhede03@gmail.com",
+  "excerpt": "(linked from commit 56f107d7813f; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:9bdc81ce440e",
+  "excerpt": "PCI: Change the type of probe argument in reset functions",
+  "date": "2021-08-17",
+  "author": "Amey Narkhede",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20210817180500.1253-10-ameynarkhede03@gmail.com"
+   ]
+  },
+  "message": "PCI: Change the type of probe argument in reset functions\n\nChange the type of probe argument in functions which implement reset\nmethods from int to bool to make the context and intent clear."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210817180500.1253-10-ameynarkhede03@gmail.com",
+  "excerpt": "(linked from commit 9bdc81ce440e; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:0ac448e0d29d",
+  "excerpt": "PCI: Delay after FLR of Solidigm P44 Pro NVMe",
+  "date": "2023-05-07",
+  "author": "Mike Pastore",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20230507073519.9737-1-mike@oobak.org"
+   ]
+  },
+  "message": "PCI: Delay after FLR of Solidigm P44 Pro NVMe\n\nPrevent KVM hang when a Solidgm P44 Pro NVMe is passed through to a guest\nvia IOMMU and the guest is subsequently rebooted.\n\nA similar issue was identified and patched by 51ba09452d11 (\"PCI: Delay\nafter FLR of Intel DC P3700 NVMe\") and the same fix can be applied for this\ncase. (Intel spun off their NAND and SSD business as Solidigm and sold it\nto SK Hynix in late 2021.)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20230507073519.9737-1-mike@oobak.org",
+  "excerpt": "(linked from commit 0ac448e0d29d; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

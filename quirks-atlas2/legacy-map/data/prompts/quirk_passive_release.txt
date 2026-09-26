@@ -1,0 +1,232 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_passive_release",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 318,
+  "end": 335
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82441",
+   "class": null,
+   "line": 336,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME",
+   "phase": "resume",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82441",
+   "class": null,
+   "line": 337,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 2,
+ "calls_local": [],
+ "calls_external": [
+  "pci_get_device",
+  "pci_info",
+  "pci_read_config_byte",
+  "pci_write_config_byte"
+ ],
+ "called_by": [],
+ "config_access": [
+  {
+   "op": "read",
+   "api": "pci_read_config_byte",
+   "offset": "0x82",
+   "value": null,
+   "line": 328
+  },
+  {
+   "op": "write",
+   "api": "pci_write_config_byte",
+   "offset": "0x82",
+   "value": "dlc",
+   "line": 332
+  }
+ ],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 6,
+  "first": "2005-04-16",
+  "last": "2018-05-02",
+  "origin_pre_git": true,
+  "n_stable": 0,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+318: static void quirk_passive_release(struct pci_dev *dev)
+319: {
+320: 	struct pci_dev *d = NULL;
+321: 	unsigned char dlc;
+322: 
+323: 	/*
+324: 	 * We have to make sure a particular bit is set in the PIIX3
+325: 	 * ISA bridge, so we have to go out and find it.
+326: 	 */
+327: 	while ((d = pci_get_device(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371SB_0, d))) {
+328: 		pci_read_config_byte(d, 0x82, &dlc);
+329: 		if (!(dlc & 1<<1)) {
+330: 			pci_info(d, "PIIX3: Enabling Passive Release\n");
+331: 			dlc |= 1<<1;
+332: 			pci_write_config_byte(d, 0x82, dlc);
+333: 		}
+334: 	}
+335: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L314-L317",
+  "excerpt": "Deal with broken BIOSes that neglect to enable passive release,\nwhich can cause problems in combination with the 82441FX/PPro MTRRs",
+  "role": "doc"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L307-L310",
+  "excerpt": "The Mellanox Tavor device gives false positive parity errors.  Disable\nparity error reporting.",
+  "role": "preamble"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L323",
+  "excerpt": "We have to make sure a particular bit is set in the PIIX3\nISA bridge, so we have to go out and find it.",
+  "role": "inline"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L332",
+  "excerpt": "pci_write_config_byte(d, 0x82, dlc);",
+  "role": "config_write"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L336",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82441,\tquirk_passive_release);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L337",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME(PCI_VENDOR_ID_INTEL,\tPCI_DEVICE_ID_INTEL_82441,\tquirk_passive_release);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1da177e4c3f4",
+  "excerpt": "Linux-2.6.12-rc2",
+  "date": "2005-04-16",
+  "author": "Linus Torvalds",
+  "pre_git_import": true,
+  "message": "Linux-2.6.12-rc2\n\nInitial git repository build. I'm not bothering with the full history,\neven though we have it. We can create a separate \"historical\" git\narchive of that later if we want to, and in the meantime it's about\n3.2GB when imported into git - space that would just make the early\ngit days unnecessarily complicated, when we don't have a lot of good\ninfrastructure for it.\n\nLet it rip!"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1597cacbe398",
+  "excerpt": "PCI: Fix multiple problems with VIA hardware",
+  "date": "2006-12-04",
+  "author": "Alan Cox",
+  "message": "PCI: Fix multiple problems with VIA hardware\n\nThis patch is designed to fix:\n- Disk eating corruptor on KT7 after resume from RAM\n- VIA IRQ handling\n- VIA fixups for bus lockups after resume from RAM\n\nThe core of this is to add a table of resume fixups run at resume time.\nWe need to do this for a variety of boards and features, but particularly\nwe need to do this to get various critical VIA fixups done on resume.\n\nThe second part of the problem is to handle VIA IRQ number rules which\nare a bit odd and need special handling for PIC interrupts. Various\npatches broke various boxes and while this one may not be perfect\n(hopefully it is) it ensures the workaround is applied to the right\ndevices only.\n\nFrom: Jean Delvare <khali@linux-fr.org>\n\nNow that PCI quirks are replayed on software resume, we can safely\nre-enable the Asus SMBus unhiding quirk even when software suspend support\nis enabled.\n\n[akpm@osdl.org: fix const warning]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f0fda801daaa",
+  "excerpt": "PCI: use dev_printk in quirk messages",
+  "date": "2007-12-17",
+  "author": "bjorn.helgaas@hp.com",
+  "cleanup": true,
+  "message": "PCI: use dev_printk in quirk messages\n\nConvert quirk printks to dev_printk().\n\nI made the MSI disable messages a little more consistent:\n\n    - always use \"disabled\", not \"deactivated\"\n    - specify \"device MSI disabled\" or \"subordinate MSI disabled\" when\n      disabling MSI for only a specific device or subordinate bus"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:999da9fd489c",
+  "excerpt": "PCI quirks: piix3: warn softer about enabling passive release",
+  "date": "2008-12-01",
+  "author": "Adam Jackson",
+  "message": "PCI quirks: piix3: warn softer about enabling passive release\n\nAll the other quirks are dev_info() not dev_err(), this one isn't special.\nThis makes 'quiet' boot in qemu really quiet."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7506dc798993",
+  "excerpt": "PCI: Add wrappers for dev_printk()",
+  "date": "2018-01-18",
+  "author": "Frederick Lawler",
+  "cleanup": true,
+  "message": "PCI: Add wrappers for dev_printk()\n\nAdd PCI-specific dev_printk() wrappers and use them to simplify the code\nslightly.  No functional change intended.\n\n[bhelgaas: squash into one patch]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:82e1719c4cd6",
+  "excerpt": "PCI: Clean up whitespace in quirks.c",
+  "date": "2018-05-02",
+  "author": "Bjorn Helgaas",
+  "cleanup": true,
+  "message": "PCI: Clean up whitespace in quirks.c\n\nClean up whitespace, capitalization, etc. in comments.  No functional\nchange intended."
+ }
+]
+
+Produce the JSON analysis now.

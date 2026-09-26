@@ -1,0 +1,137 @@
+{
+ "function": "quirk_broken_intx_masking",
+ "one_line_intent": "Mark devices whose PCI_COMMAND_INTX_DISABLE bit is writable but doesn't actually mask legacy interrupts.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "The core infers INTx masking support from a writable bit; some devices lie, so they are explicitly marked.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:fbebb9fd2258",
+      "excerpt": "pci_intx_mask_supported() assumes INTx masking is supported if the PCI_COMMAND_INTX_DISABLE bit is writable.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Registered in FINAL (not HEADER) phase on purpose, because the flag is only consumed later.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:b88214ce4d70",
+      "excerpt": "which is not needed until after FINAL quirks have been run.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "i40e NICs: DisINTx settable but the status bit doesn't work.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3637-L3638",
+      "excerpt": "DisINTx can be set but the interrupt status bit is non-functional.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Matters mainly for vfio-pci, which relies on INTx masking to share interrupts.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:2910306655a7",
+      "excerpt": "generates spurious interrupts when used with vfio-pci unless DisINTx masking support is disabled.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Consumed by pci_intx_mask_supported() and VFIO.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3616",
+      "excerpt": "dev->broken_intx_masking = 1;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Removal leads to spurious interrupts or device-assignment failure.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3631",
+      "excerpt": "Fails under PCI device assignment using DisINTx masking.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Spurious interrupts in VMs; affects server NICs (i40e).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3637-L3638",
+      "excerpt": "all have broken INTx masking",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "A Mellanox 'all devices' entry was narrowed to listed devices - broad vendor-wide quirks get walked back.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:d76d2fe05fd9",
+      "excerpt": "Change Mellanox's broken_intx_masking() quirk from an \"all Mellanox devices\" to a quirk for listed devices only.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

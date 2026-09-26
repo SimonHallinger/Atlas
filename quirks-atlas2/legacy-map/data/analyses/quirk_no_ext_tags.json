@@ -1,0 +1,149 @@
+{
+ "function": "quirk_no_ext_tags",
+ "one_line_intent": "If a known-bad root port/device is found, disable PCIe Extended (8-bit) Tags for the ENTIRE hierarchy under that host bridge.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Per spec every completer must handle 8-bit tags, but some don't; since peer-to-peer DMA can target the broken device from anywhere, the fix disables extended tags for the whole hierarchy, not just the broken device.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:62ce94a7a5a5",
+      "excerpt": "If we find such a device, we disable Extended Tags for the entire hierarchy to make peer-to-peer DMA possible.",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L5636",
+      "excerpt": "pci_walk_bus(bridge->bus, pci_configure_extended_tags, NULL);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Blast radius (all devices under the host bridge) is deliberate.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L5633",
+      "excerpt": "bridge->no_ext_tags = 1;",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Registered in the EARLY phase so the host-bridge flag is set before other devices on the bus configure tags.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L5638",
+      "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_3WARE, 0x1004, quirk_no_ext_tags);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Compensates for a core change: every commit adding IDs has 'Fixes: PCI: Enable PCIe Extended Tags if supported'. The quirk exists because a generic optimisation exposed non-compliant hardware.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:1b30dfd376e2",
+      "excerpt": "60db3a4d8cc9 (\"PCI: Enable PCIe Extended Tags if supported\")",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Sets system-level state on the pci_host_bridge (no_ext_tags) that affects every device below it.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L5633",
+      "excerpt": "bridge->no_ext_tags = 1;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Symptoms of removal range from X server hangs to PCI parity errors on 3ware RAID controllers.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:1b30dfd376e2",
+      "excerpt": "This fixes Xorg hangs",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:baf67aefbe7d",
+      "excerpt": "This fixes PCI Parity Errors like",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "safety",
+   "reasoning": {
+    "claim": "Storage controller (3ware RAID) parity errors on the DMA path are a data-integrity risk; the quirk sits between a core performance feature and data integrity.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:baf67aefbe7d",
+      "excerpt": "The 3ware 9650SE seems to have issues with handling 8-bit tags.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "The same 3ware bug (bugzilla 202425) needed a second entry in 2026 for a sibling SKU (9650SA) - the table lags reality by years.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:959ac08a2c28",
+      "excerpt": "The 3ware 9650SA seems to have issues with handling 8-bit tags.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 10,
+  "verified": 10,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

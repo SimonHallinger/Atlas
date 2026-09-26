@@ -1,0 +1,170 @@
+{
+ "function": "quirk_apple_poweroff_thunderbolt",
+ "one_line_intent": "On Apple Macs, cut power to the Cactus Ridge Thunderbolt controller during suspend using undocumented ACPI methods, so it comes back after resume.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Without a power cut, the Thunderbolt native host interface disappears after resume if a device was plugged in.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3875-L3877",
+      "excerpt": "Otherwise the native host interface (NHI) will not be present after resume if a device was plugged in before suspend.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "The ACPI call order and the 300 ms sleep are an opaque 'magic sequence', reverse-engineered rather than documented.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3922",
+      "excerpt": "magic sequence",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L3925",
+      "excerpt": "msleep(300);",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Only runs when suspending via firmware, because Linux can turn power off but not back on.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3897-L3900",
+      "excerpt": "We don't know how to turn it back on again, but firmware does",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Timing: 300 ms between SXFP and SXLV calls; no rationale for the value appears in history.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3925",
+      "excerpt": "msleep(300);",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "Depends on Apple-specific ACPI method names (SXIO/SXFP/SXLV) that exist only on machines needing the quirk.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3910-L3914",
+      "excerpt": "SXIO and SXLV are present only on machines requiring this quirk.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Platform (Apple firmware) workaround, runs in the suspend_late phase of the upstream bridge.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3930",
+      "excerpt": "DECLARE_PCI_FIXUP_SUSPEND_LATE(PCI_VENDOR_ID_INTEL,",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Couples PCI suspend with ACPI firmware methods and the global pm_suspend_via_firmware() state.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3902",
+      "excerpt": "if (!pm_suspend_via_firmware())",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "The pm_suspend_via_firmware() guard is a regression fix: without it s2idle/standby resume breaks external displays.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:4694ae373dc2",
+      "excerpt": "resuming from suspend-to-idle or standby resulted in the external monitor no longer being detected",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "business",
+   "reasoning": {
+    "claim": "Loss of Thunderbolt after resume on specific Macs; not safety-relevant.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3875-L3877",
+      "excerpt": "will not be present after resume",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "A new sleep state (s2idle) that didn't exist when the quirk was written made the power-off unrecoverable - quirks encode assumptions about which sleep paths exist.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:4694ae373dc2",
+      "excerpt": "we know how to turn power to the Thunderbolt controller *off* via the SXIO/SXFP/SXLF methods, but we don't know how to turn power back on.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 11,
+  "verified": 11,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

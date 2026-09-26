@@ -1,0 +1,163 @@
+{
+ "function": "quirk_jmicron_ata",
+ "one_line_intent": "Program JMicron SATA/PATA controllers' config registers 0x40/0x80 early during enumeration to select AHCI/IDE function layout.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Must run early so the extra IDE function appears during PCI scanning; otherwise the AHCI driver grabs the chip and PATA ports vanish.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1818-L1819",
+      "excerpt": "must do this early on to make the additional device appear during the PCI scanning.",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:15e0c6943673",
+      "excerpt": "the AHCI driver grabs the controller and rams it into AHCI mode losing the PATA ports",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Bit masks 0x00CFF302 / 0x00C2A1B3 are vendor-recommended values, partially documented.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3a9e3a51dd47",
+      "excerpt": "This has the following effects and is recommended by the vendor.",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L1854",
+      "excerpt": "conf1 |= 0x00C2A1B3; /* Set 0, 1, 4, 5, 7, 8, 13, 15, 17, 22, 23 */",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Re-reads header type and class after programming because the device changes identity.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1866",
+      "excerpt": "Update pdev accordingly",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Changes device class code and multifunction bit at runtime; drivers match on the resulting class.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e34bb370dec4",
+      "excerpt": "Make jmiron_ata quirk update pdev->class after programming the device",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Not a bug workaround so much as mandatory device configuration done in the PCI layer because it must precede driver binding.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1818-L1819",
+      "excerpt": "If we are using libata we can drive this chip properly",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Contract with the ahci and pata_jmicron drivers: they match on class codes that this quirk sets.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e34bb370dec4",
+      "excerpt": "update ahci and pata_jmicron such that they match class code instead of checking function number manually",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Also registered for resume_early: the programming must be replayed after suspend.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L1874",
+      "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB360, quirk_jmicron_ata);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Wrong programming = disks/optical drives disappear or ports misbehave.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:77280989673e",
+      "excerpt": "The implemented JMicron PCI quirk was incorrect in that it didn't program AHCI mode enable bits.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Load-order bug: correctness depended on which driver loaded first until the programming moved into this quirk.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:77280989673e",
+      "excerpt": "If pata_jmicron is loaded first and programs those bits, the ahci ports work",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 11,
+  "verified": 11,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

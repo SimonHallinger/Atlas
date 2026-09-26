@@ -1,0 +1,163 @@
+{
+ "function": "quirk_vialatency",
+ "one_line_intent": "On VIA KT133-class boards with buggy 686A/686B/8231 southbridge revisions, change PCI bus arbitration to prevent data loss under load.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Under heavy PCI load the CPU can be held off the bus, causing data loss including on IDE; forcing master-priority rotation on every grant avoids it.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L466-L470",
+      "excerpt": "you can get data loss when the CPU is held off the bus for 3 bus master requests.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Deliberately more aggressive than VIA's own recommendation (which only applied with SB Live!).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L472-L475",
+      "excerpt": "So we ignore that bit of the VIA recommendation..",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Revision windows 0x40-0x42 and 0x10-0x12 are the known-buggy parts.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L451",
+      "excerpt": "Check for buggy part revisions",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Register 0x76 bits 4/5 of the VIA northbridge (master priority rotation).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L479-L482",
+      "excerpt": "Master priority rotation on every PCI master grant",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L485",
+      "excerpt": "pci_write_config_byte(dev, 0x76, busarb);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Based on a community Windows patch, later refined with VIA information.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L427-L429",
+      "excerpt": "Made according to a Windows driver-based patch by George E. Breese",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Registered for FINAL and RESUME: setting must be restored on resume from RAM.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L494",
+      "excerpt": "DECLARE_PCI_FIXUP_RESUME(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_8363_0, quirk_vialatency);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "The resume registration was added to fix a 'disk eating corruptor' after resume.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:1597cacbe398",
+      "excerpt": "Disk eating corruptor on KT7 after resume from RAM",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "safety",
+   "reasoning": {
+    "claim": "Protects against silent disk data corruption.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L468-L469",
+      "excerpt": "you can get data loss",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:1597cacbe398",
+      "excerpt": "Disk eating corruptor on KT7 after resume from RAM",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Origin predates git (2005 import); rationale survives only because it is written in the comment. Removing the comment would erase the only record.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:1da177e4c3f4",
+      "excerpt": "Initial git repository build. I'm not bothering with the full history",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 11,
+  "verified": 11,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

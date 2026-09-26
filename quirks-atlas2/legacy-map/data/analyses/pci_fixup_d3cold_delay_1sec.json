@@ -1,0 +1,137 @@
+{
+ "function": "pci_fixup_d3cold_delay_1sec",
+ "one_line_intent": "Give the VideoPropulsion Torrent QN16e card 1 second after reset/D3cold before first config access.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "A core change shortened the post-reset delay from 1 s to the spec's 100 ms for PCIe; this card needs the old 1 s.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:c9260693aa0c",
+      "excerpt": "shortened an unconditional 1 sec delay after a Secondary Bus Reset to 100 msec for PCIe",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "1000 ms equals the old pre-2019 unconditional delay.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L6403",
+      "excerpt": "pdev->d3cold_delay = 1000;",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Timing: out-of-spec device requiring > 100 ms.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:c9260693aa0c",
+      "excerpt": "there are PCIe devices which require a longer delay than prescribed",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Compensates for a core timing optimisation (Fixes: ac91e6980563).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:c9260693aa0c",
+      "excerpt": "Commit ac91e6980563 (\"PCI: Unify delay handling for reset and resume\")",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Per-device d3cold_delay consumed by the reset and resume paths.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L6403",
+      "excerpt": "pdev->d3cold_delay = 1000;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Backported to stable v5.4+.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:c9260693aa0c",
+      "excerpt": "PCI: Lengthen reset delay for VideoPropulsion Torrent QN16e card",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Broadcast equipment (MPEG modulator) fails after reset without it.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L6399",
+      "excerpt": "VideoPropulsion (aka Genroco) Torrent QN16e MPEG QAM Modulator",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "A spec-compliant timing optimisation broke real hardware 4 years later; spec compliance is not the same as field compatibility.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:c9260693aa0c",
+      "excerpt": "The 1 sec delay is only required for Conventional PCI.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

@@ -1,0 +1,270 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_isa_dma_hangs",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 348,
+  "end": 354
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_VIA",
+   "device": "PCI_DEVICE_ID_VIA_82C586_0",
+   "class": null,
+   "line": 359,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_VIA",
+   "device": "PCI_DEVICE_ID_VIA_82C596",
+   "class": null,
+   "line": 360,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_DEVICE_ID_INTEL_82371SB_0",
+   "class": null,
+   "line": 361,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_AL",
+   "device": "PCI_DEVICE_ID_AL_M1533",
+   "class": null,
+   "line": 362,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_NEC",
+   "device": "PCI_DEVICE_ID_NEC_CBUS_1",
+   "class": null,
+   "line": 363,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_NEC",
+   "device": "PCI_DEVICE_ID_NEC_CBUS_2",
+   "class": null,
+   "line": 364,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_NEC",
+   "device": "PCI_DEVICE_ID_NEC_CBUS_3",
+   "class": null,
+   "line": 365,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 7,
+ "calls_local": [],
+ "calls_external": [
+  "pci_info"
+ ],
+ "called_by": [],
+ "config_access": [],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [
+  "isa_dma_bridge_buggy"
+ ],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 6,
+  "first": "2005-04-16",
+  "last": "2018-05-02",
+  "origin_pre_git": true,
+  "n_stable": 0,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+348: static void quirk_isa_dma_hangs(struct pci_dev *dev)
+349: {
+350: 	if (!isa_dma_bridge_buggy) {
+351: 		isa_dma_bridge_buggy = 1;
+352: 		pci_info(dev, "Activating ISA DMA hang workarounds\n");
+353: 	}
+354: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L340-L347",
+  "excerpt": "The VIA VP2/VP3/MVP3 seem to have some 'features'. There may be a\nworkaround but VIA don't answer queries. If you happen to have good\ncontacts at VIA ask them for me please -- Alan\n\nThis appears to be BIOS not version dependent. So presumably there is a\nchipset level fix.",
+  "role": "doc"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L355-L358",
+  "excerpt": "It's not totally clear which chipsets are the problematic ones.  We know\n82C586 and 82C596 variants are affected.",
+  "role": "registration_site"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L359",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA,\tPCI_DEVICE_ID_VIA_82C586_0,\tquirk_isa_dma_hangs);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L360",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA,\tPCI_DEVICE_ID_VIA_82C596,\tquirk_isa_dma_hangs);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L361",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL,    PCI_DEVICE_ID_INTEL_82371SB_0,  quirk_isa_dma_hangs);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L362",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_AL,\tPCI_DEVICE_ID_AL_M1533,\t\tquirk_isa_dma_hangs);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L363",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_NEC,\tPCI_DEVICE_ID_NEC_CBUS_1,\tquirk_isa_dma_hangs);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L364",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_NEC,\tPCI_DEVICE_ID_NEC_CBUS_2,\tquirk_isa_dma_hangs);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L365",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_NEC,\tPCI_DEVICE_ID_NEC_CBUS_3,\tquirk_isa_dma_hangs);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1da177e4c3f4",
+  "excerpt": "Linux-2.6.12-rc2",
+  "date": "2005-04-16",
+  "author": "Linus Torvalds",
+  "pre_git_import": true,
+  "message": "Linux-2.6.12-rc2\n\nInitial git repository build. I'm not bothering with the full history,\neven though we have it. We can create a separate \"historical\" git\narchive of that later if we want to, and in the meantime it's about\n3.2GB when imported into git - space that would just make the early\ngit days unnecessarily complicated, when we don't have a lot of good\ninfrastructure for it.\n\nLet it rip!"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f0fda801daaa",
+  "excerpt": "PCI: use dev_printk in quirk messages",
+  "date": "2007-12-17",
+  "author": "bjorn.helgaas@hp.com",
+  "cleanup": true,
+  "message": "PCI: use dev_printk in quirk messages\n\nConvert quirk printks to dev_printk().\n\nI made the MSI disable messages a little more consistent:\n\n    - always use \"disabled\", not \"deactivated\"\n    - specify \"device MSI disabled\" or \"subordinate MSI disabled\" when\n      disabling MSI for only a specific device or subordinate bus"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:15856ad50bf5",
+  "excerpt": "PCI: Remove __dev* markings",
+  "date": "2012-11-21",
+  "author": "Bill Pemberton",
+  "cleanup": true,
+  "message": "PCI: Remove __dev* markings\n\nCONFIG_HOTPLUG is going away as an option so __devexit_p, __devint,\n__devinitdata, __devinitconst, and _devexit are no longer needed."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3c78bc61f5ef",
+  "excerpt": "PCI: Whitespace cleanup",
+  "date": "2014-04-18",
+  "author": "Ryan Desfosses",
+  "cleanup": true,
+  "message": "PCI: Whitespace cleanup\n\nFix various whitespace errors.\n\nNo functional change.\n\n[bhelgaas: fix other similar problems]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7506dc798993",
+  "excerpt": "PCI: Add wrappers for dev_printk()",
+  "date": "2018-01-18",
+  "author": "Frederick Lawler",
+  "cleanup": true,
+  "message": "PCI: Add wrappers for dev_printk()\n\nAdd PCI-specific dev_printk() wrappers and use them to simplify the code\nslightly.  No functional change intended.\n\n[bhelgaas: squash into one patch]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:82e1719c4cd6",
+  "excerpt": "PCI: Clean up whitespace in quirks.c",
+  "date": "2018-05-02",
+  "author": "Bjorn Helgaas",
+  "cleanup": true,
+  "message": "PCI: Clean up whitespace in quirks.c\n\nClean up whitespace, capitalization, etc. in comments.  No functional\nchange intended."
+ }
+]
+
+Produce the JSON analysis now.

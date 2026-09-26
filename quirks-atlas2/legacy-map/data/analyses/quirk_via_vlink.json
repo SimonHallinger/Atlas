@@ -1,0 +1,274 @@
+{
+ "function": "quirk_via_vlink",
+ "one_line_intent": "On systems with a VIA southbridge, rewrite the legacy PCI Interrupt Line register of on-board VIA devices so PIC-mode interrupts are routed correctly.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "VIA chipsets route interrupts via the PCI Interrupt Line register even though it is normally informational; if the BIOS did not program it, interrupts go to the wrong place, so the kernel rewrites it.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1232-L1234",
+      "excerpt": "we need to ensure that the IRQ line register which usually is not relevant for PCI cards, is actually written so that interrupts get sent to the right place",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "Two-step design: a separate quirk first detects which VIA southbridge exists and records the on-board device slot range (via_vlink_dev_lo/hi); this ENABLE-phase quirk then only touches devices inside that range. This split exists because device lookup was not available when quirks ran.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:c06bb5d49d8b",
+      "excerpt": "So I used a two-step quirk as is done for some other quirks already.  First we detect the VIA south bridges and set the right low and high device limits",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L1244",
+      "excerpt": "if (via_vlink_dev_lo == -1)",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "The udelay(15) before the config write is explicitly marked as possibly unnecessary by the original author; no commit in the git era explains the value 15us.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1266",
+      "excerpt": "unknown if delay really needed",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L1266",
+      "excerpt": "udelay(15);\t/* unknown if delay really needed */",
+      "verified": true
+     }
+    ],
+    "classification": "unclear"
+   },
+   {
+    "claim": "'> 15' (not '>= 15') is deliberate: IRQ 15 is still a legacy PIC interrupt.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:09d6029f43eb",
+      "excerpt": "we do a comparison of \">15\" rather than \">=15\", as 15 is still in the legacy interrupt range",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Restricting to bus 0 and the detected slot range is deliberate: running on add-in VIA cards or non-VIA boards broke systems.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:75cf7456dd87",
+      "excerpt": "Alan Cox pointed out that the VIA 'IRQ fixup' was erroneously running on my system which has no VIA southbridge",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Timing assumption: a 15us settle time before writing PCI_INTERRUPT_LINE, of unknown origin (pre-2005).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L1266",
+      "excerpt": "udelay(15);\t/* unknown if delay really needed */",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:25be5e6ccc5c",
+      "excerpt": "restore quirk_via_irqpic()",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "Obsolete-hardware assumption: legacy 8259 PIC interrupt numbering (0-15) and VIA V-Link southbridges from the early 2000s.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1249",
+      "excerpt": "Don't quirk interrupts outside the legacy IRQ range",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Workaround for BIOSes that fail to program the interrupt line register on VIA boards.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1259-L1260",
+      "excerpt": "The BIOS ought to have set this but may not have, so we redo it.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Registered as an ENABLE-phase fixup for every VIA device ID (PCI_ANY_ID); it therefore runs each time any VIA PCI function is enabled by a driver.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L1270",
+      "excerpt": "DECLARE_PCI_FIXUP_ENABLE(PCI_VENDOR_ID_VIA, PCI_ANY_ID, quirk_via_vlink);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "The scoping rules (VIA southbridge present, bus 0, slot range, IRQ<=15) encode 2 years of regressions; each rule is load-bearing for some set of boards.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:09d6029f43eb",
+      "excerpt": "The most recent VIA IRQ quirk changes have broken various VIA devices for some users.",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:1597cacbe398",
+      "excerpt": "Various patches broke various boxes and while this one may not be perfect (hopefully it is) it ensures the workaround is applied to the right devices only.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "business",
+   "reasoning": {
+    "claim": "Failure mode is lost or misrouted interrupts on legacy VIA boards (device appears dead). Hardware base is 20+ years old, but it runs for every VIA function enable on x86 PIC-mode systems.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L1232-L1234",
+      "excerpt": "so that interrupts get sent to the right place",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "The scope of this quirk was changed at least 5 times between May 2005 and Jan 2007, alternating between 'too broad' (breaks non-VIA boards) and 'too narrow' (breaks VIA boards).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:93cffffa1996",
+      "excerpt": "At least some VIA chipsets require the fixup even in IO-APIC mode.",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:75cf7456dd87",
+      "excerpt": "VIA IRQ fixup should only run for VIA southbridges",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:09d6029f43eb",
+      "excerpt": "We are not able to add these devices to the blacklist as they are also available in PCI-card form",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "The rationale for the delay predates git: the first git commit touching it says it 'restores' an earlier quirk, so the original reasoning lives only in pre-2005 history.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:25be5e6ccc5c",
+      "excerpt": "Delete quirk_via_bridge(), restore quirk_via_irqpic()",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [
+  {
+   "if_you": "delete the udelay(15)",
+   "then": "possibly nothing - or intermittent interrupt misrouting on some VIA board nobody can test anymore",
+   "confidence": "low",
+   "evidence": [
+    {
+     "type": "comment",
+     "ref": "quirks.c:L1266",
+     "excerpt": "unknown if delay really needed",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "if_you": "widen or narrow the device scope",
+   "then": "repeats a documented 2005-2007 regression cycle",
+   "confidence": "high",
+   "evidence": [
+    {
+     "type": "commit",
+     "ref": "commit:09d6029f43eb",
+     "excerpt": "running the quirk on these devices brings us back to square one",
+     "verified": true
+    }
+   ]
+  }
+ ],
+ "open_questions": [
+  "Linus's 2005 suggestion (lkml.org/lkml/2005/9/27/113) is referenced but not retrieved.",
+  "Is any VIA V-Link hardware available for regression testing?"
+ ],
+ "showcase": {
+  "title": "udelay(15) /* unknown if delay really needed */",
+  "hook": "A 15-microsecond delay the code itself says may be pointless. History: it predates git (2005 import) and survived 10 commits; the surrounding scope logic flip-flopped 5 times in 2005-2007 because every narrowing or widening broke someone's VIA board. Rule: don't remove it without the hardware."
+ },
+ "verification": {
+  "evidence_items": 21,
+  "verified": 21,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

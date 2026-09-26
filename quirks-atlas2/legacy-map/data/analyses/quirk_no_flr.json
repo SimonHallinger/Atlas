@@ -1,0 +1,143 @@
+{
+ "function": "quirk_no_flr",
+ "one_line_intent": "Mark devices whose advertised Function Level Reset hangs the device, so the kernel picks another reset method.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Devices advertise FLR but hang when it is used; the flag makes the reset core skip FLR.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L5591-L5602",
+      "excerpt": "FLR may cause the following to devices to hang",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L5605",
+      "excerpt": "dev->dev_flags |= PCI_DEV_FLAGS_NO_FLR_RESET;",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Originally Intel-specific (quirk_intel_no_flr) and renamed when AMD needed it - the generic name reflects intended reuse.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:0d14f06cd665",
+      "excerpt": "Rename the existing quirk_intel_no_flr(), which was not Intel-specific, to quirk_no_flr()",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Some entries come from vendor documentation (Intel spec update), others from user reproduction in VMs.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:f65fd1aa4f98",
+      "excerpt": "Per Intel Specification Update 335553-002",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Almost all discovered via VFIO passthrough: attach, detach, re-attach.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:f65fd1aa4f98",
+      "excerpt": "To reproduce the problem, attach the device to a VM, then detach and try to attach again.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Also used as a building block by quirk_no_flr_snet (revision-specific).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L5622",
+      "excerpt": "quirk_no_flr(dev);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "EARLY phase is required so the flag is set before reset methods are enumerated.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L5607",
+      "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_AMD, 0x1487, quirk_no_flr);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Without it a host can become 'increasingly unresponsive' and need a hard reset after starting a guest with the device.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:5727043c73fd",
+      "excerpt": "the system becomes increasingly unresponsive over the course of several minutes, eventually requiring a hard reset",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "MT7922 entry was needed because a core change in readiness polling (RRS) altered how a broken FLR manifests - core changes shift failure modes of old quirks.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:81f64e925c29",
+      "excerpt": "Prior to d591f6804e7e (\"PCI: Wait for device readiness with Configuration RRS\")",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 9,
+  "verified": 9,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

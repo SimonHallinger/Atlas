@@ -1,0 +1,159 @@
+{
+ "function": "quirk_intel_mc_errata",
+ "one_line_intent": "Disable read-completion coalescing in Intel 5000/5100 memory controllers and root ports to avoid an erratum with 256-byte Max Payload Size.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Implements a published Intel erratum: read completion coalescing + MPS 256B misbehaves on 5000/5100 MCHs. Since MPS isn't known until the whole fabric is enumerated, coalescing is disabled unconditionally.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3442-L3449",
+      "excerpt": "Since there is no way of knowing what the PCIe MPS on each fabric will be until all of the devices are discovered and buses walked, read completion coalescing must be disabled.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Magic register 0x48 bit 10 is intentionally unexplained: the erratum gives the bits but not their meaning.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3460-L3462",
+      "excerpt": "Intel erratum specifies bits to change but does not say what they are.  Keeping them magical until such time as the registers and values can be explained.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "The early return for PCIE_BUS_DEFAULT was added in 2015 as part of a new default MPS policy (match upstream bridge), i.e. the quirk is now skipped on default configurations. This makes the erratum fix conditional on a boot parameter, which is easy to miss.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:27d868b5e6cf",
+      "excerpt": "Add a new default setting, PCIE_BUS_DEFAULT, in which we make sure every device's MPS setting matches the upstream bridge.",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L3456",
+      "excerpt": "pcie_bus_config == PCIE_BUS_DEFAULT)",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Depends on Intel 5000/5100-series MCH register layout (config offset 0x48).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3475",
+      "excerpt": "err = pci_write_config_word(dev, 0x48, rcc);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Silicon erratum workaround with vendor documentation (specification updates linked in the commit).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:d387a8d66670",
+      "excerpt": "Intel 5000 and 5100 series memory controllers have a known issue if read completion coalescing is enabled and the PCI-E Maximum Payload Size is set to 256B.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Coupled to the pcie_bus_config kernel parameter (pci=pcie_bus_*): behaviour depends on how MPS tuning was configured at boot.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3455",
+      "excerpt": "if (pcie_bus_config == PCIE_BUS_TUNE_OFF ||",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Cannot be re-enabled at runtime because a 256B-MPS device might be hot-plugged later; any 'optimise when safe' change violates this.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3447-L3448",
+      "excerpt": "Unfortunately, it cannot be re-enabled because it is possible to hotplug a device with MPS of 256B.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "safety",
+   "reasoning": {
+    "claim": "Guards against a memory-controller erratum on the DMA read path. The history does not name the symptom, but memory-controller completion errata typically manifest as data corruption or machine checks; confidence in the specific failure mode is therefore limited.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:d387a8d66670",
+      "excerpt": "To work around this issue, disable read completion coalescing in the memory controller and root complexes.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "A later, unrelated change to MPS policy altered when this erratum fix runs. Errata fixes that depend on global configuration can be silently bypassed by policy changes elsewhere.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:27d868b5e6cf",
+      "excerpt": "PCI: Set MPS to match upstream bridge",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [
+  "Does PCIE_BUS_DEFAULT guarantee MPS never reaches 256B on these platforms? The 2015 commit does not argue this explicitly."
+ ],
+ "verification": {
+  "evidence_items": 10,
+  "verified": 10,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

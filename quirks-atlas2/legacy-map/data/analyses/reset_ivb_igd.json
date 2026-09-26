@@ -1,0 +1,143 @@
+{
+ "function": "reset_ivb_igd",
+ "one_line_intent": "Device-specific reset for Ivy Bridge integrated graphics that avoids a hang caused by FLR.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "FLR on IVB mobile iGPU can hang the system; instead the quirk disables the PCH/CPU FLR handshake, powers down the panel sequencer and resets the PCH display.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:df558de16c8a",
+      "excerpt": "We are disabling the FLR reset handshake between the PCH and CPU display, then manually powering down the panel power sequencing and resetting the PCH display.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Clobbering SOUTH_CHICKEN2 is acknowledged as only safe because i915 will set the bits again.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3978-L3981",
+      "excerpt": "Clobbering SOUTH_CHICKEN2 register is fine only if the next driver loaded sets the right bits.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "10-second timeout polling panel power status every 10 ms; on timeout it only warns and continues.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3960",
+      "excerpt": "#define IGD_OPERATION_TIMEOUT\t10000     /* set timeout 10 seconds */",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L3993",
+      "excerpt": "msleep(10);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Silicon erratum workaround (IVB FLR errata).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:df558de16c8a",
+      "excerpt": "This quirk is a workaround for the IVB FLR errata issue.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Dispatched via pci_dev_reset_methods[] for two IVB VGA device IDs.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L4237",
+      "excerpt": "reset_ivb_igd },",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Implicit dependency on i915 re-initialising chicken bits after reset.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L3979-L3981",
+      "excerpt": "this's a reset and the bits have been set by i915 previously",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "mission",
+   "reasoning": {
+    "claim": "The alternative (FLR) hangs the system.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:df558de16c8a",
+      "excerpt": "a system hang may occur if a FLR (Function Level Reset) is asserted to internal graphics.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Magic register values with no explanation; only 3 commits in 13 years, so few people understand it.",
+    "confidence": "low",
+    "basis": "inference",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L3975",
+      "excerpt": "iowrite32(0x00000002, mmio_base + MSG_CTL);",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 9,
+  "verified": 9,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

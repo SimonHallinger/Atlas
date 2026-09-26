@@ -1,0 +1,447 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "nvme_disable_and_flr",
+ "kind": "reset_method",
+ "lines": {
+  "start": 4083,
+  "end": 4149
+ },
+ "fixup_registrations": [],
+ "n_fixups": 0,
+ "calls_local": [],
+ "calls_external": [
+  "NVME_CAP_TIMEOUT",
+  "msleep",
+  "pci_iomap",
+  "pci_iounmap",
+  "pci_read_config_word",
+  "pci_resource_start",
+  "pci_warn",
+  "pci_write_config_word",
+  "pcie_flr",
+  "pcie_reset_flr",
+  "readl",
+  "time_after",
+  "writel"
+ ],
+ "called_by": [],
+ "config_access": [
+  {
+   "op": "read",
+   "api": "pci_read_config_word",
+   "offset": "PCI_COMMAND",
+   "value": null,
+   "line": 4100
+  },
+  {
+   "op": "write",
+   "api": "pci_write_config_word",
+   "offset": "PCI_COMMAND",
+   "value": "cmd | PCI_COMMAND_MEMORY",
+   "line": 4101
+  }
+ ],
+ "delays": [
+  {
+   "fn": "msleep",
+   "value": "100",
+   "line": 4135
+  }
+ ],
+ "timing": [
+  {
+   "kind": "assignment",
+   "target": "timeout",
+   "value": "((NVME_CAP_TIMEOUT(cap) + 1) * HZ / 2) + jiffies",
+   "line": 4126
+  },
+  {
+   "kind": "timeout_or_delay_api",
+   "target": "jiffies",
+   "value": "",
+   "line": 4126
+  },
+  {
+   "kind": "timeout_or_delay_api",
+   "target": "time_after",
+   "value": "jiffies, timeout)) {\n\t\t\t\tpci_warn(dev, \"Timeout waiting for NVMe ready status to clear after disable\\n\"",
+   "line": 4137
+  }
+ ],
+ "io": [
+  {
+   "fn": "pci_iomap",
+   "args": [
+    "dev",
+    "0",
+    "NVME_REG_CC + sizeof(cfg)"
+   ],
+   "line": 4096
+  },
+  {
+   "fn": "readl",
+   "args": [
+    "bar + NVME_REG_CC"
+   ],
+   "line": 4103
+  },
+  {
+   "fn": "readl",
+   "args": [
+    "bar + NVME_REG_CAP"
+   ],
+   "line": 4107
+  },
+  {
+   "fn": "writel",
+   "args": [
+    "cfg",
+    "bar + NVME_REG_CC"
+   ],
+   "line": 4117
+  },
+  {
+   "fn": "readl",
+   "args": [
+    "bar + NVME_REG_CSTS"
+   ],
+   "line": 4129
+  },
+  {
+   "fn": "pci_iounmap",
+   "args": [
+    "dev",
+    "bar"
+   ],
+   "line": 4144
+  }
+ ],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [
+  {
+   "table": "pci_dev_reset_methods",
+   "struct": "pci_dev_reset_methods",
+   "line": 4233
+  }
+ ],
+ "non_static": false,
+ "history": {
+  "n_commits": 5,
+  "first": "2018-08-09",
+  "last": "2023-05-07",
+  "origin_pre_git": false,
+  "n_stable": 0,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+4083: static int nvme_disable_and_flr(struct pci_dev *dev, bool probe)
+4084: {
+4085: 	void __iomem *bar;
+4086: 	u16 cmd;
+4087: 	u32 cfg;
+4088: 
+4089: 	if (dev->class != PCI_CLASS_STORAGE_EXPRESS ||
+4090: 	    pcie_reset_flr(dev, PCI_RESET_PROBE) || !pci_resource_start(dev, 0))
+4091: 		return -ENOTTY;
+4092: 
+4093: 	if (probe)
+4094: 		return 0;
+4095: 
+4096: 	bar = pci_iomap(dev, 0, NVME_REG_CC + sizeof(cfg));
+4097: 	if (!bar)
+4098: 		return -ENOTTY;
+4099: 
+4100: 	pci_read_config_word(dev, PCI_COMMAND, &cmd);
+4101: 	pci_write_config_word(dev, PCI_COMMAND, cmd | PCI_COMMAND_MEMORY);
+4102: 
+4103: 	cfg = readl(bar + NVME_REG_CC);
+4104: 
+4105: 	/* Disable controller if enabled */
+4106: 	if (cfg & NVME_CC_ENABLE) {
+4107: 		u32 cap = readl(bar + NVME_REG_CAP);
+4108: 		unsigned long timeout;
+4109: 
+4110: 		/*
+4111: 		 * Per nvme_disable_ctrl() skip shutdown notification as it
+4112: 		 * could complete commands to the admin queue.  We only intend
+4113: 		 * to quiesce the device before reset.
+4114: 		 */
+4115: 		cfg &= ~(NVME_CC_SHN_MASK | NVME_CC_ENABLE);
+4116: 
+4117: 		writel(cfg, bar + NVME_REG_CC);
+4118: 
+4119: 		/*
+4120: 		 * Some controllers require an additional delay here, see
+4121: 		 * NVME_QUIRK_DELAY_BEFORE_CHK_RDY.  None of those are yet
+4122: 		 * supported by this quirk.
+4123: 		 */
+4124: 
+4125: 		/* Cap register provides max timeout in 500ms increments */
+4126: 		timeout = ((NVME_CAP_TIMEOUT(cap) + 1) * HZ / 2) + jiffies;
+4127: 
+4128: 		for (;;) {
+4129: 			u32 status = readl(bar + NVME_REG_CSTS);
+4130: 
+4131: 			/* Ready status becomes zero on disable complete */
+4132: 			if (!(status & NVME_CSTS_RDY))
+4133: 				break;
+4134: 
+4135: 			msleep(100);
+4136: 
+4137: 			if (time_after(jiffies, timeout)) {
+4138: 				pci_warn(dev, "Timeout waiting for NVMe ready status to clear after disable\n");
+4139: 				break;
+4140: 			}
+4141: 		}
+4142: 	}
+4143: 
+4144: 	pci_iounmap(dev, bar);
+4145: 
+4146: 	pcie_flr(dev);
+4147: 
+4148: 	return 0;
+4149: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4070-L4082",
+  "excerpt": "The Samsung SM961/PM961 controller can sometimes enter a fatal state after\nFLR where config space reads from the device return -1.  We seem to be\nable to avoid this condition if we disable the NVMe controller prior to\nFLR.  This quirk is generic for any NVMe class device requiring similar\nassistance to quiesce the device prior to FLR.\n\nNVMe specification: https://nvmexpress.org/resources/specifications/\nRevision 1.0e:\n   Chapter 2: Required and optional PCI config registers\n   Chapter 3: NVMe control registers\n   Chapter 7.3: Reset behavior",
+  "role": "doc"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4105",
+  "excerpt": "Disable controller if enabled",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4110",
+  "excerpt": "Per nvme_disable_ctrl() skip shutdown notification as it\ncould complete commands to the admin queue.  We only intend\nto quiesce the device before reset.",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4119",
+  "excerpt": "Some controllers require an additional delay here, see\nNVME_QUIRK_DELAY_BEFORE_CHK_RDY.  None of those are yet\nsupported by this quirk.",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4125",
+  "excerpt": "Cap register provides max timeout in 500ms increments",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L4131",
+  "excerpt": "Ready status becomes zero on disable complete",
+  "role": "inline"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4096",
+  "excerpt": "bar = pci_iomap(dev, 0, NVME_REG_CC + sizeof(cfg));",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4101",
+  "excerpt": "pci_write_config_word(dev, PCI_COMMAND, cmd | PCI_COMMAND_MEMORY);",
+  "role": "config_write"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4103",
+  "excerpt": "cfg = readl(bar + NVME_REG_CC);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4107",
+  "excerpt": "u32 cap = readl(bar + NVME_REG_CAP);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4117",
+  "excerpt": "writel(cfg, bar + NVME_REG_CC);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4126",
+  "excerpt": "timeout = ((NVME_CAP_TIMEOUT(cap) + 1) * HZ / 2) + jiffies;",
+  "role": "timing"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4129",
+  "excerpt": "u32 status = readl(bar + NVME_REG_CSTS);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4135",
+  "excerpt": "msleep(100);",
+  "role": "delay"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4137",
+  "excerpt": "if (time_after(jiffies, timeout)) {",
+  "role": "timing"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L4144",
+  "excerpt": "pci_iounmap(dev, bar);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:ffb0863426eb",
+  "excerpt": "PCI: Disable Samsung SM961/PM961 NVMe before FLR",
+  "date": "2018-08-09",
+  "author": "Alex Williamson",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.redhat.com/show_bug.cgi?id=1542494"
+   ]
+  },
+  "message": "PCI: Disable Samsung SM961/PM961 NVMe before FLR\n\nThe Samsung SM961/PM961 (960 EVO) sometimes fails to return from FLR with\nthe PCI config space reading back as -1.  A reproducible instance of this\nbehavior is resolved by clearing the enable bit in the NVMe configuration\nregister and waiting for the ready status to clear (disabling the NVMe\ncontroller) prior to FLR."
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.redhat.com/show_bug.cgi?id=1542494",
+  "excerpt": "(bug tracker entry referenced by commit ffb0863426eb)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:51ba09452d11",
+  "excerpt": "PCI: Delay after FLR of Intel DC P3700 NVMe",
+  "date": "2018-08-09",
+  "author": "Alex Williamson",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.redhat.com/show_bug.cgi?id=1592654"
+   ]
+  },
+  "message": "PCI: Delay after FLR of Intel DC P3700 NVMe\n\nAdd a device-specific reset for Intel DC P3700 NVMe device which exhibits a\ntimeout failure in drivers waiting for the ready status to update after\nNVMe enable if the driver interacts with the device too soon after FLR.  As\nthis has been observed in device assignment scenarios, resolve this with a\ndevice-specific reset quirk to add an additional, heuristically determined,\ndelay after the FLR completes."
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.redhat.com/show_bug.cgi?id=1592654",
+  "excerpt": "(bug tracker entry referenced by commit 51ba09452d11)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:56f107d7813f",
+  "excerpt": "PCI: Add pcie_reset_flr() with 'probe' argument",
+  "date": "2021-08-17",
+  "author": "Amey Narkhede",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20210817180500.1253-3-ameynarkhede03@gmail.com"
+   ]
+  },
+  "message": "PCI: Add pcie_reset_flr() with 'probe' argument\n\nMost reset methods are of the form \"pci_*_reset(dev, probe)\".  pcie_flr()\nwas an exception because it relied on a separate pcie_has_flr() function\ninstead of taking a \"probe\" argument.\n\nAdd \"pcie_reset_flr(dev, probe)\" to follow the convention.  Remove\npcie_has_flr().\n\nSome pcie_flr() callers that did not use pcie_has_flr() remain.\n\n[bhelgaas: commit log, rework pcie_reset_flr() to use dev->devcap directly]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210817180500.1253-3-ameynarkhede03@gmail.com",
+  "excerpt": "(linked from commit 56f107d7813f; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:9bdc81ce440e",
+  "excerpt": "PCI: Change the type of probe argument in reset functions",
+  "date": "2021-08-17",
+  "author": "Amey Narkhede",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20210817180500.1253-10-ameynarkhede03@gmail.com"
+   ]
+  },
+  "message": "PCI: Change the type of probe argument in reset functions\n\nChange the type of probe argument in functions which implement reset\nmethods from int to bool to make the context and intent clear."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210817180500.1253-10-ameynarkhede03@gmail.com",
+  "excerpt": "(linked from commit 9bdc81ce440e; thread not retrieved)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:0ac448e0d29d",
+  "excerpt": "PCI: Delay after FLR of Solidigm P44 Pro NVMe",
+  "date": "2023-05-07",
+  "author": "Mike Pastore",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20230507073519.9737-1-mike@oobak.org"
+   ]
+  },
+  "message": "PCI: Delay after FLR of Solidigm P44 Pro NVMe\n\nPrevent KVM hang when a Solidgm P44 Pro NVMe is passed through to a guest\nvia IOMMU and the guest is subsequently rebooted.\n\nA similar issue was identified and patched by 51ba09452d11 (\"PCI: Delay\nafter FLR of Intel DC P3700 NVMe\") and the same fix can be applied for this\ncase. (Intel spun off their NAND and SSD business as Solidigm and sold it\nto SK Hynix in late 2021.)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20230507073519.9737-1-mike@oobak.org",
+  "excerpt": "(linked from commit 0ac448e0d29d; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

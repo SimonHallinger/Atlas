@@ -1,0 +1,137 @@
+{
+ "function": "quirk_ryzen_xhci_d3hot",
+ "one_line_intent": "Increase the D3hot->D0 delay to 20 ms for certain AMD Ryzen/Renoir XHCI controllers.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Controllers fail to resume from runtime suspend/s2idle unless given a longer D3hot-to-D0 delay.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L2075-L2078",
+      "excerpt": "The D3hot-to-D0 transition then requires an extended delay in order to succeed.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "20 ms is chosen empirically; AMD found no hardware erratum, and Windows uses 100 ms by default.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e0bff4322092",
+      "excerpt": "they are not aware of any HW errata or specific issues.  The HW works fine in Windows.  I was told Windows uses a rather generous default delay of 100ms",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Timing dependency: PCI spec D3hot delay is 10 ms; these parts need 20.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2082",
+      "excerpt": "quirk_d3hot_delay(dev, 20);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Platform timing workaround; the 'D3cold' transition is ineffective on these platforms.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L2075-L2077",
+      "excerpt": "the PCI device appears to remain on in D3hot state.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Sets per-device d3hot_delay used by the PCI PM core.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L2082",
+      "excerpt": "quirk_d3hot_delay(dev, 20);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "USB becomes unusable after suspend without it.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3030df209aa8",
+      "excerpt": "USB becomes unusable from that point.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "business",
+   "reasoning": {
+    "claim": "Loss of USB after suspend on laptops.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3030df209aa8",
+      "excerpt": "USB becomes unusable from that point.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Linux follows the spec's minimum delay; Windows uses a generous 100 ms - a hint that hardware is validated against Windows timing, not the spec.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e0bff4322092",
+      "excerpt": "Windows uses a rather generous default delay of 100ms for PCI state transitions.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

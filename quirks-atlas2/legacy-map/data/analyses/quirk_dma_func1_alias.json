@@ -1,0 +1,143 @@
+{
+ "function": "quirk_dma_func1_alias",
+ "one_line_intent": "Tell the IOMMU that DMA from this device may arrive tagged with function 1's requester ID (a hardware bug in many Marvell SATA controllers).",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Several controllers issue DMA using function 1 as the requester ID even when they are function 0; without an alias, the IOMMU blocks that DMA.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:cc346a4714a5",
+      "excerpt": "they use function 1 as the PCIe requester ID",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L4308",
+      "excerpt": "pci_add_dma_alias(dev, PCI_DEVFN(PCI_SLOT(dev->devfn), 1), 1);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Function 1 may not even exist on some SKUs (a 'ghost requester'); the alias is added regardless.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4311-L4316",
+      "excerpt": "in other SKUs this function is not present, making this a ghost requester.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Only matters when an IOMMU is active (VT-d, AMD-Vi, ARM SMMU); without IOMMU the bug is invisible.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:9cde402a5977",
+      "excerpt": "Some quick testing with the ARM SMMU enabled reveals that it suffers from the same requester ID mixup problems",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Silicon bug in Marvell 88SE91xx/92xx family; tracked in one long-running bugzilla (42679) since 2012.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "bug_report",
+      "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=42679",
+      "excerpt": "https://bugzilla.kernel.org/show_bug.cgi?id=42679",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Output consumed by IOMMU drivers via the device's DMA alias list.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L4308",
+      "excerpt": "pci_add_dma_alias(dev, PCI_DEVFN(PCI_SLOT(dev->devfn), 1), 1);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Removing an entry makes the disk controller fail to initialise under IOMMU.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e44537588288",
+      "excerpt": "Without this patch, device initialization fails with DMA errors",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Storage controller becomes unusable (no disks) whenever IOMMU is enabled - which is exactly the configuration security-hardened systems use.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e44537588288",
+      "excerpt": "the same DMA requester ID hardware bug that prevents it from working under IOMMU",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "19 registrations added one-by-one over 9 years from the same bug report; the vendor's own family relationship ('closely related family') was the best predictor of the next broken part.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:88d341716b83",
+      "excerpt": "Marvell's own product brief implies the 92xx series are a closely related family",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 9,
+  "verified": 9,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

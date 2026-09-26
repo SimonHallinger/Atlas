@@ -1,0 +1,201 @@
+{
+ "function": "delay_250ms_after_flr",
+ "one_line_intent": "Device-specific reset: perform a normal Function Level Reset, then sleep 250 ms before letting the driver touch certain NVMe SSDs.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Some NVMe controllers time out waiting for ready status if the driver touches them too soon after FLR; the delay is a device-specific reset method rather than a change to generic FLR timing so that only affected devices pay the cost.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4151-L4156",
+      "excerpt": "will timeout waiting for ready status to change after NVMe enable if the driver starts interacting with the device too soon after FLR",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:51ba09452d11",
+      "excerpt": "resolve this with a device-specific reset quirk to add an additional, heuristically determined, delay after the FLR completes",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "The value 250 ms is an empirical choice, not from a spec or datasheet.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L4154-L4156",
+      "excerpt": "A 250ms delay after FLR has heuristically proven to produce reliably working results for device assignment cases.",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L4165",
+      "excerpt": "msleep(250);",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Return value 0 regardless of pcie_reset_flr() result in reset mode: the FLR outcome is ignored, only the probe path reports capability.",
+    "confidence": "low",
+    "basis": "inference",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L4163",
+      "excerpt": "pcie_reset_flr(dev, PCI_RESET_DO_RESET);",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Timing dependency: device needs ~250 ms after FLR before NVMe CC.EN handshakes work; the PCIe spec allows 100 ms, so these parts are out-of-spec in practice.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L4165",
+      "excerpt": "msleep(250);",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:ce00322c2365",
+      "excerpt": "waits 100ms (the maximum time allowed for FLR completion by PCIe r5.0, sec 6.6.2)",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Workaround for device assignment (VFIO/KVM) scenarios: symptoms were VM hangs on guest reboot, not bare-metal failures.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:0ac448e0d29d",
+      "excerpt": "Prevent KVM hang when a Solidgm P44 Pro NVMe is passed through to a guest via IOMMU and the guest is subsequently rebooted.",
+      "verified": true
+     },
+     {
+      "type": "bug_report",
+      "ref": "https://bugzilla.redhat.com/show_bug.cgi?id=1592654",
+      "excerpt": "https://bugzilla.redhat.com/show_bug.cgi?id=1592654",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Not a fixup hook: dispatched through the pci_dev_reset_methods[] table by vendor/device ID (Intel 0x0953, 0x0a54, Solidigm 0xf1ac); reached via pci_dev_specific_reset() from the PCI core reset path used by VFIO and sysfs reset.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L4241",
+      "excerpt": "{ PCI_VENDOR_ID_INTEL, 0x0953, delay_250ms_after_flr },",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L4243",
+      "excerpt": "{ PCI_VENDOR_ID_SOLIDIGM, 0xf1ac, delay_250ms_after_flr },",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "The device-ID table entries are the compatibility surface: a rebranded or re-IDed drive silently loses the delay.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:0ac448e0d29d",
+      "excerpt": "Intel spun off their NAND and SSD business as Solidigm and sold it to SK Hynix in late 2021.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Affects reliability of VM device assignment of specific NVMe SSDs (guest hangs). No data-corruption evidence, but in a virtualised mission system a hung guest after reboot is an availability failure.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:0ac448e0d29d",
+      "excerpt": "Prevent KVM hang",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "The same failure reappeared in a different vendor's product 5 years later and was solved by adding an ID to the table - evidence that the fix encodes a controller-family behaviour, not a single bug.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:0ac448e0d29d",
+      "excerpt": "A similar issue was identified and patched by 51ba09452d11 (\"PCI: Delay after FLR of Intel DC P3700 NVMe\") and the same fix can be applied for this case.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [
+  {
+   "if_you": "shorten or remove the 250 ms",
+   "then": "VFIO guest reboot hangs on P3700 / P44 Pro class drives",
+   "confidence": "high",
+   "evidence": [
+    {
+     "type": "comment",
+     "ref": "quirks.c:L4154-L4156",
+     "excerpt": "heuristically proven to produce reliably working results",
+     "verified": true
+    }
+   ]
+  }
+ ],
+ "open_questions": [
+  "Is 250 ms a lower bound or just the first value that worked? The history does not say."
+ ],
+ "showcase": {
+  "title": "msleep(250): a 'magic number' that is actually a measured contract with three SSD models",
+  "hook": "Looks like an arbitrary sleep. History: added for Intel DC P3700 in VM device assignment (Red Hat bugzilla), 'heuristically determined'; reused in 2023 for a Solidigm drive because Intel's SSD unit became Solidigm - the device table follows the company, not the silicon."
+ },
+ "verification": {
+  "evidence_items": 15,
+  "verified": 15,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

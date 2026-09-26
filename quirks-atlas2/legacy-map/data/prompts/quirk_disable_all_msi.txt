@@ -1,0 +1,399 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_disable_all_msi",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 2695,
+  "end": 2699
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_SERVERWORKS",
+   "device": "PCI_DEVICE_ID_SERVERWORKS_GCNB_LE",
+   "class": null,
+   "line": 2700,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "PCI_DEVICE_ID_ATI_RS400_200",
+   "class": null,
+   "line": 2701,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_ATI",
+   "device": "PCI_DEVICE_ID_ATI_RS480",
+   "class": null,
+   "line": 2702,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_VIA",
+   "device": "PCI_DEVICE_ID_VIA_VT3336",
+   "class": null,
+   "line": 2703,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_VIA",
+   "device": "PCI_DEVICE_ID_VIA_VT3351",
+   "class": null,
+   "line": 2704,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_VIA",
+   "device": "PCI_DEVICE_ID_VIA_VT3364",
+   "class": null,
+   "line": 2705,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_VIA",
+   "device": "PCI_DEVICE_ID_VIA_8380_0",
+   "class": null,
+   "line": 2706,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_SI",
+   "device": "0x0761",
+   "class": null,
+   "line": 2707,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_SAMSUNG",
+   "device": "0xa5e3",
+   "class": null,
+   "line": 2708,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 9,
+ "calls_local": [],
+ "calls_external": [
+  "pci_no_msi",
+  "pci_warn"
+ ],
+ "called_by": [],
+ "config_access": [],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [
+  "pci_no_msi"
+ ],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 14,
+  "first": "2006-08-31",
+  "last": "2020-11-13",
+  "origin_pre_git": false,
+  "n_stable": 2,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+2695: static void quirk_disable_all_msi(struct pci_dev *dev)
+2696: {
+2697: 	pci_no_msi();
+2698: 	pci_warn(dev, "MSI quirk detected; MSI disabled\n");
+2699: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L2688-L2694",
+  "excerpt": "Some chipsets do not support MSI. We cannot easily rely on setting\nPCI_BUS_FLAGS_NO_MSI in its bus flags because there are actually some\nother buses controlled by the chipset even if Linux is not aware of it.\nInstead of setting the flag on all buses in the machine, simply disable\nMSI globally.",
+  "role": "doc"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2700",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_SERVERWORKS, PCI_DEVICE_ID_SERVERWORKS_GCNB_LE, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2701",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_RS400_200, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2702",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_RS480, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2703",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VT3336, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2704",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VT3351, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2705",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VT3364, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2706",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_8380_0, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2707",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_SI, 0x0761, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2708",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_SAMSUNG, 0xa5e3, quirk_disable_all_msi);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3f79e107f72e",
+  "excerpt": "MSI: Cleanup existing MSI quirks",
+  "date": "2006-08-31",
+  "author": "Brice Goglin",
+  "message": "MSI: Cleanup existing MSI quirks\n\nMove MSI quirks in CONFIG_PCI_MSI, document why the serverworks quirk\ndoes not simply set PCI_BUS_FLAGS_NO_MSI, and create a generic quirk\nfor other chipsets where setting PCI_BUS_FLAGS_NO_MSI is fine."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:88187dfa4d8b",
+  "excerpt": "MSI: Replace pci_msi_quirk with calls to pci_no_msi()",
+  "date": "2007-01-25",
+  "author": "Michael Ellerman",
+  "message": "MSI: Replace pci_msi_quirk with calls to pci_no_msi()\n\nI don't see any reason why we need pci_msi_quirk, quirk code can just\ncall pci_no_msi() instead.\n\nRemove the check of pci_msi_quirk in msi_init(). This is safe as all\ncalls to msi_init() are protected by calls to pci_msi_supported(),\nwhich checks pci_msi_enable, which is disabled by pci_no_msi().\n\nThe pci_disable_msi routines didn't check pci_msi_quirk, only\npci_msi_enable, but as far as I can see that was a bug not a feature."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:184b812f7da6",
+  "excerpt": "PCI: quirk disable MSI on via vt3351",
+  "date": "2007-05-26",
+  "author": "Jay Cliburn",
+  "trailers": {
+   "bug_refs": [
+    "http://bugzilla.kernel.org/show_bug.cgi?id=8472"
+   ]
+  },
+  "message": "PCI: quirk disable MSI on via vt3351\n\nThe Via VT3351 APIC does not play well with MSI and unleashes a flood\nof APIC errors when MSI is used to deliver interrupts.  The problem\nwas recently exposed when the atl1 network device driver, which enables\nMSI by default, stimulated APIC errors on an Asus M2V mainboard, which\nemploys the Via VT3351.\nSee http://bugzilla.kernel.org/show_bug.cgi?id=8472 for additional\ndetails on this bug."
+ },
+ {
+  "type": "bug_report",
+  "ref": "http://bugzilla.kernel.org/show_bug.cgi?id=8472",
+  "excerpt": "(bug tracker entry referenced by commit 184b812f7da6)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:ebdf7d399e67",
+  "excerpt": "pci-quirks: fix MSI disabling on RS400-200 and RS480",
+  "date": "2007-05-31",
+  "author": "Tejun Heo",
+  "message": "pci-quirks: fix MSI disabling on RS400-200 and RS480\n\nCommit c0affe9db42bf85f4a606b3262c35ec59a5d3788 doesn't work because\nthe host controller is being quirked not a PCI bridge.  This patch\nreverts the commit, rename quirk_svw_msi() to quirk_disable_all_msi()\nand use it instead."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f0fda801daaa",
+  "excerpt": "PCI: use dev_printk in quirk messages",
+  "date": "2007-12-17",
+  "author": "bjorn.helgaas@hp.com",
+  "cleanup": true,
+  "message": "PCI: use dev_printk in quirk messages\n\nConvert quirk printks to dev_printk().\n\nI made the MSI disable messages a little more consistent:\n\n    - always use \"disabled\", not \"deactivated\"\n    - specify \"device MSI disabled\" or \"subordinate MSI disabled\" when\n      disabling MSI for only a specific device or subordinate bus"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:66d715c95a39",
+  "excerpt": "pci: VT3336 can't do MSI either",
+  "date": "2008-07-04",
+  "author": "Tejun Heo",
+  "trailers": {
+   "bug_refs": [
+    "https://bugzilla.novell.com/show_bug.cgi?id=300001"
+   ]
+  },
+  "message": "pci: VT3336 can't do MSI either\n\nIt seems VT3336 can't do msi either as with its bro 3351.  Disable it.\nReported in the following SUSE bug.\n\n  https://bugzilla.novell.com/show_bug.cgi?id=300001"
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.novell.com/show_bug.cgi?id=300001",
+  "excerpt": "(bug tracker entry referenced by commit 66d715c95a39)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:162dedd39dcc",
+  "excerpt": "PCI quirk: disable MSI on VIA VT3364 chipsets",
+  "date": "2009-04-03",
+  "author": "Thomas Renninger",
+  "trailers": {
+   "cc_stable": [
+    "<stable@kernel.org>"
+   ]
+  },
+  "message": "PCI quirk: disable MSI on VIA VT3364 chipsets\n\nWithout this patch, Broadcom BCM5906 Ethernet controllers set up via MSI\ncause the machine to hang.  Tejun agreed that the best is to blacklist\nthe whole chipset and after adding it, seeing the other VIA quirks\ndisabling MSI, this very much looks like the right way."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:549e15611b4a",
+  "excerpt": "PCI: disable MSI on VIA K8M800",
+  "date": "2010-05-23",
+  "author": "Tejun Heo",
+  "trailers": {
+   "reported_by": [
+    "Rainer Hurtado Navarro <publio.escipion.el.africano@gmail.com>"
+   ],
+   "cc_stable": [
+    "stable@kernel.org"
+   ]
+  },
+  "message": "PCI: disable MSI on VIA K8M800\n\nMSI delivery from on-board ahci controller doesn't work on K8M800.  At\nthis point, it's unclear whether the culprit is with the ahci\ncontroller or the host bridge.  Given the track record and considering\nthe rather minimal impact of MSI, disabling it seems reasonable."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:b99ea85a3acf",
+  "excerpt": "PCI: move fixup hooks from __init to __devinit",
+  "date": "2012-06-03",
+  "author": "Sebastian Andrzej Siewior",
+  "cleanup": true,
+  "message": "PCI: move fixup hooks from __init to __devinit\n\nThe fixups are executed once the pci-device is found which is during\nboot process so __init seems fine as long as the platform does not\nsupport hotplug.\n\nHowever it is possible to remove the PCI bus at run time and have it\nrediscovered again via \"echo 1 > /sys/bus/pci/rescan\" and this will call\nthe fixups again."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:15856ad50bf5",
+  "excerpt": "PCI: Remove __dev* markings",
+  "date": "2012-11-21",
+  "author": "Bill Pemberton",
+  "cleanup": true,
+  "message": "PCI: Remove __dev* markings\n\nCONFIG_HOTPLUG is going away as an option so __devexit_p, __devint,\n__devinitdata, __devinitconst, and _devexit are no longer needed."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:10b4ad1a53e4",
+  "excerpt": "PCI: Disable MSI on SiS 761",
+  "date": "2015-09-24",
+  "author": "Ondrej Zary",
+  "message": "PCI: Disable MSI on SiS 761\n\nMSI is broken on SiS 761 chipset at least on PC Chips A31G board.  No\ninterrupts are delivered once MSI is enabled for a device.  This causes\nhang on X11 start with a nVidia card installed (with nouveau driver).\n\nDisable MSI completely for this chipset."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7506dc798993",
+  "excerpt": "PCI: Add wrappers for dev_printk()",
+  "date": "2018-01-18",
+  "author": "Frederick Lawler",
+  "cleanup": true,
+  "message": "PCI: Add wrappers for dev_printk()\n\nAdd PCI-specific dev_printk() wrappers and use them to simplify the code\nslightly.  No functional change intended.\n\n[bhelgaas: squash into one patch]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:82e1719c4cd6",
+  "excerpt": "PCI: Clean up whitespace in quirks.c",
+  "date": "2018-05-02",
+  "author": "Bjorn Helgaas",
+  "cleanup": true,
+  "message": "PCI: Clean up whitespace in quirks.c\n\nClean up whitespace, capitalization, etc. in comments.  No functional\nchange intended."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:778f7c194b1d",
+  "excerpt": "PCI: dwc: exynos: Rework the driver to support Exynos5433 variant",
+  "date": "2020-11-13",
+  "author": "Jaehoon Chung",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20201113170139.29956-6-m.szyprowski@samsung.com"
+   ]
+  },
+  "message": "PCI: dwc: exynos: Rework the driver to support Exynos5433 variant\n\nExynos5440 SoC support has been dropped since commit 8c83315da1cf (\"ARM:\ndts: exynos: Remove Exynos5440\"). Rework this driver to support DWC PCIe\nvariant found in the Exynos5433 SoCs.\n\nThe main difference in Exynos5433 variant is lack of the MSI support\n(the MSI interrupt is not even routed to the CPU).\n\n[mszyprow: reworked the driver to support only Exynos5433 variant,\n\t   simplified code, rebased onto current kernel code, added\n\t   regulator support, converted to the regular platform driver,\n\t   removed MSI related code, rewrote commit message, added help]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20201113170139.29956-6-m.szyprowski@samsung.com",
+  "excerpt": "(linked from commit 778f7c194b1d; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

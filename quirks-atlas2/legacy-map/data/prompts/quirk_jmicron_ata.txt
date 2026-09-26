@@ -1,0 +1,689 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_jmicron_ata",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 1821,
+  "end": 1873
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB360",
+   "class": null,
+   "line": 1874,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB361",
+   "class": null,
+   "line": 1875,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB362",
+   "class": null,
+   "line": 1876,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB363",
+   "class": null,
+   "line": 1877,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB364",
+   "class": null,
+   "line": 1878,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB365",
+   "class": null,
+   "line": 1879,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB366",
+   "class": null,
+   "line": 1880,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB368",
+   "class": null,
+   "line": 1881,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_EARLY",
+   "phase": "early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB369",
+   "class": null,
+   "line": 1882,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB360",
+   "class": null,
+   "line": 1883,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB361",
+   "class": null,
+   "line": 1884,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB362",
+   "class": null,
+   "line": 1885,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB363",
+   "class": null,
+   "line": 1886,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB364",
+   "class": null,
+   "line": 1887,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB365",
+   "class": null,
+   "line": 1888,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB366",
+   "class": null,
+   "line": 1889,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB368",
+   "class": null,
+   "line": 1890,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_RESUME_EARLY",
+   "phase": "resume_early",
+   "vendor": "PCI_VENDOR_ID_JMICRON",
+   "device": "PCI_DEVICE_ID_JMICRON_JMB369",
+   "class": null,
+   "line": 1891,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 18,
+ "calls_local": [],
+ "calls_external": [
+  "FIELD_GET",
+  "PCI_FUNC",
+  "pci_read_config_byte",
+  "pci_read_config_dword",
+  "pci_write_config_dword"
+ ],
+ "called_by": [],
+ "config_access": [
+  {
+   "op": "read",
+   "api": "pci_read_config_dword",
+   "offset": "0x40",
+   "value": null,
+   "line": 1830
+  },
+  {
+   "op": "read",
+   "api": "pci_read_config_dword",
+   "offset": "0x80",
+   "value": null,
+   "line": 1831
+  },
+  {
+   "op": "write",
+   "api": "pci_write_config_dword",
+   "offset": "0x40",
+   "value": "conf1",
+   "line": 1863
+  },
+  {
+   "op": "write",
+   "api": "pci_write_config_dword",
+   "offset": "0x80",
+   "value": "conf5",
+   "line": 1864
+  },
+  {
+   "op": "read",
+   "api": "pci_read_config_byte",
+   "offset": "PCI_HEADER_TYPE",
+   "value": null,
+   "line": 1867
+  },
+  {
+   "op": "read",
+   "api": "pci_read_config_dword",
+   "offset": "PCI_CLASS_REVISION",
+   "value": null,
+   "line": 1871
+  }
+ ],
+ "delays": [],
+ "timing": [],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [
+  "class",
+  "hdr_type",
+  "multifunction"
+ ],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 12,
+  "first": "2006-07-12",
+  "last": "2023-10-03",
+  "origin_pre_git": false,
+  "n_stable": 1,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+1821: static void quirk_jmicron_ata(struct pci_dev *pdev)
+1822: {
+1823: 	u32 conf1, conf5, class;
+1824: 	u8 hdr;
+1825: 
+1826: 	/* Only poke fn 0 */
+1827: 	if (PCI_FUNC(pdev->devfn))
+1828: 		return;
+1829: 
+1830: 	pci_read_config_dword(pdev, 0x40, &conf1);
+1831: 	pci_read_config_dword(pdev, 0x80, &conf5);
+1832: 
+1833: 	conf1 &= ~0x00CFF302; /* Clear bit 1, 8, 9, 12-19, 22, 23 */
+1834: 	conf5 &= ~(1 << 24);  /* Clear bit 24 */
+1835: 
+1836: 	switch (pdev->device) {
+1837: 	case PCI_DEVICE_ID_JMICRON_JMB360: /* SATA single port */
+1838: 	case PCI_DEVICE_ID_JMICRON_JMB362: /* SATA dual ports */
+1839: 	case PCI_DEVICE_ID_JMICRON_JMB364: /* SATA dual ports */
+1840: 		/* The controller should be in single function ahci mode */
+1841: 		conf1 |= 0x0002A100; /* Set 8, 13, 15, 17 */
+1842: 		break;
+1843: 
+1844: 	case PCI_DEVICE_ID_JMICRON_JMB365:
+1845: 	case PCI_DEVICE_ID_JMICRON_JMB366:
+1846: 		/* Redirect IDE second PATA port to the right spot */
+1847: 		conf5 |= (1 << 24);
+1848: 		fallthrough;
+1849: 	case PCI_DEVICE_ID_JMICRON_JMB361:
+1850: 	case PCI_DEVICE_ID_JMICRON_JMB363:
+1851: 	case PCI_DEVICE_ID_JMICRON_JMB369:
+1852: 		/* Enable dual function mode, AHCI on fn 0, IDE fn1 */
+1853: 		/* Set the class codes correctly and then direct IDE 0 */
+1854: 		conf1 |= 0x00C2A1B3; /* Set 0, 1, 4, 5, 7, 8, 13, 15, 17, 22, 23 */
+1855: 		break;
+1856: 
+1857: 	case PCI_DEVICE_ID_JMICRON_JMB368:
+1858: 		/* The controller should be in single function IDE mode */
+1859: 		conf1 |= 0x00C00000; /* Set 22, 23 */
+1860: 		break;
+1861: 	}
+1862: 
+1863: 	pci_write_config_dword(pdev, 0x40, conf1);
+1864: 	pci_write_config_dword(pdev, 0x80, conf5);
+1865: 
+1866: 	/* Update pdev accordingly */
+1867: 	pci_read_config_byte(pdev, PCI_HEADER_TYPE, &hdr);
+1868: 	pdev->hdr_type = hdr & PCI_HEADER_TYPE_MASK;
+1869: 	pdev->multifunction = FIELD_GET(PCI_HEADER_TYPE_MFD, hdr);
+1870: 
+1871: 	pci_read_config_dword(pdev, PCI_CLASS_REVISION, &class);
+1872: 	pdev->class = class >> 8;
+1873: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1817-L1820",
+  "excerpt": "If we are using libata we can drive this chip properly but must do this\nearly on to make the additional device appear during the PCI scanning.",
+  "role": "doc"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1826",
+  "excerpt": "Only poke fn 0",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1833",
+  "excerpt": "Clear bit 1, 8, 9, 12-19, 22, 23",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1834",
+  "excerpt": "Clear bit 24",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1837",
+  "excerpt": "SATA single port",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1838",
+  "excerpt": "SATA dual ports",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1839",
+  "excerpt": "SATA dual ports",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1840",
+  "excerpt": "The controller should be in single function ahci mode",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1841",
+  "excerpt": "Set 8, 13, 15, 17",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1846",
+  "excerpt": "Redirect IDE second PATA port to the right spot",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1852",
+  "excerpt": "Enable dual function mode, AHCI on fn 0, IDE fn1",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1853",
+  "excerpt": "Set the class codes correctly and then direct IDE 0",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1854",
+  "excerpt": "Set 0, 1, 4, 5, 7, 8, 13, 15, 17, 22, 23",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1858",
+  "excerpt": "The controller should be in single function IDE mode",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1859",
+  "excerpt": "Set 22, 23",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L1866",
+  "excerpt": "Update pdev accordingly",
+  "role": "inline"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1863",
+  "excerpt": "pci_write_config_dword(pdev, 0x40, conf1);",
+  "role": "config_write"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1864",
+  "excerpt": "pci_write_config_dword(pdev, 0x80, conf5);",
+  "role": "config_write"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1874",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB360, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1875",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB361, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1876",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB362, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1877",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB363, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1878",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB364, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1879",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB365, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1880",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB366, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1881",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB368, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1882",
+  "excerpt": "DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB369, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1883",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB360, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1884",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB361, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1885",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB362, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1886",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB363, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1887",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB364, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1888",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB365, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1889",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB366, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1890",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB368, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L1891",
+  "excerpt": "DECLARE_PCI_FIXUP_RESUME_EARLY(PCI_VENDOR_ID_JMICRON, PCI_DEVICE_ID_JMICRON_JMB369, quirk_jmicron_ata);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:15e0c6943673",
+  "excerpt": "[PATCH] ide: fix Jmicron support",
+  "date": "2006-07-12",
+  "author": "Alan Cox",
+  "message": "[PATCH] ide: fix Jmicron support\n\nPrior to 2.6.18rc1 you could install with devices on a JMicron chipset\nusing the \"all-generic-ide\" option. As of this kernel the AHCI driver\ngrabs the controller and rams it into AHCI mode losing the PATA ports\nand making CD drives and the like vanish. The all-generic-ide option\nfails because the AHCI driver grabbed the PCI device and reconfigured\nit.\n\nTo fix this three things are needed.\n\n#1 We must put the chip into dual function mode\n#2 The AHCI driver must grab only function 0 (already in your rc1 tree)\n#3 Something must grab the PATA ports\n\nThe attached patch is the minimal risk edition of this. It puts the chip\ninto dual function mode so that AHCI will grab the SATA ports without\nlosing the PATA ports. To keep the risk as low as possible the third\npatch adds the PCI identifiers for the PATA port and the FN check to the\nide-generic driver. There is a more featured jmicron driver on its way\nbut that adds risk and the ide-generic support is sufficient to install\nand run a system.\n\nThe actual chip setup done by the quirk is the precise setup recommended\nby the vendor.\n\n(The JMB368 appears only in the ide-generic entry as it has no AHCI so\ndoes not need the quirk)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1597cacbe398",
+  "excerpt": "PCI: Fix multiple problems with VIA hardware",
+  "date": "2006-12-04",
+  "author": "Alan Cox",
+  "message": "PCI: Fix multiple problems with VIA hardware\n\nThis patch is designed to fix:\n- Disk eating corruptor on KT7 after resume from RAM\n- VIA IRQ handling\n- VIA fixups for bus lockups after resume from RAM\n\nThe core of this is to add a table of resume fixups run at resume time.\nWe need to do this for a variety of boards and features, but particularly\nwe need to do this to get various critical VIA fixups done on resume.\n\nThe second part of the problem is to handle VIA IRQ number rules which\nare a bit odd and need special handling for PIC interrupts. Various\npatches broke various boxes and while this one may not be perfect\n(hopefully it is) it ensures the workaround is applied to the right\ndevices only.\n\nFrom: Jean Delvare <khali@linux-fr.org>\n\nNow that PCI quirks are replayed on software resume, we can safely\nre-enable the Asus SMBus unhiding quirk even when software suspend support\nis enabled.\n\n[akpm@osdl.org: fix const warning]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:77280989673e",
+  "excerpt": "ahci/pata_jmicron: fix JMicron quirk",
+  "date": "2007-02-02",
+  "author": "Tejun Heo",
+  "message": "ahci/pata_jmicron: fix JMicron quirk\n\nFor all JMicrons except for 361 and 368, AHCI mode enable bits in the\nControl(1) should be set.  This used to be done in both ahci and\npata_jmicron but while moving programming to PCI quirk, it was removed\nfrom ahci part while still left in pata_jmicron.\n\nThe implemented JMicron PCI quirk was incorrect in that it didn't\nprogram AHCI mode enable bits.  If pata_jmicron is loaded first and\nprograms those bits, the ahci ports work; otherwise, ahci device\ndetection fails miserably.\n\nThis patch makes JMicron PCI quirk clear SATA IDE mode bits and set\nAHCI mode bits and remove the respective part from pata_jmicron.\nTested on JMB361, 363 and 368."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:5ee2ae7fb207",
+  "excerpt": "jmicron ATA: reimplement jmicron ATA quirk",
+  "date": "2007-02-26",
+  "author": "Tejun Heo",
+  "message": "jmicron ATA: reimplement jmicron ATA quirk\n\nReimplement jmicron ATA quirk.\n\n* renamed to quirk_jmicron_ata()\n* quirk is invoked only for the affected controllers\n* programming is stricter.  e.g. conf5 bit24 is cleared if\n  unnecessary.\n* code factored for readability\n* JMB360 and JMB368 are programmed into proper mode\n\nVerified on JMB360, 363 and 368."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e34bb370dec4",
+  "excerpt": "ahci/pata_jmicron: match class not function number",
+  "date": "2007-02-26",
+  "author": "Tejun Heo",
+  "message": "ahci/pata_jmicron: match class not function number\n\nMake jmiron_ata quirk update pdev->class after programming the device\nand update ahci and pata_jmicron such that they match class code\ninstead of checking function number manually.  For ahci, it matches\nfor vendor and class.  For pata_jmicron, it matches vendor, device and\nclass as IDE class isn't as well defined as AHCI class.\n\nThis makes jmicron device matching more conventional and script\nfriendly."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3a9e3a51dd47",
+  "excerpt": "jmicron: update quirk for JMB361/3/5/6",
+  "date": "2007-10-23",
+  "author": "Tejun Heo",
+  "message": "jmicron: update quirk for JMB361/3/5/6\n\nSet bits 0, 4, 5 and 7 of PCI configuration register 0x40 in the\nquirk.  This has the following effects and is recommended by the\nvendor.\n\n* Force enable of IDE channels (used to be left alone as BIOS\n  configured)\n\n* Change initial phase behavior of PIO cycle such that the host pulls\n  down the bus instead of tristating it.  Vendor recommends this\n  setting.\n\nThe above settings are better for the current generation of\ncontrollers and needed for the upcoming next generation.\n\nTested on JMB363."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e1a2a51e684b",
+  "excerpt": "Suspend/Resume bug in PCI layer wrt quirks",
+  "date": "2008-05-15",
+  "author": "Rafael J. Wysocki",
+  "message": "Suspend/Resume bug in PCI layer wrt quirks\n\nSome quirks should be called with interrupt disabled, we can't directly\ncall them in .resume_early. Also the patch introduces\npci_fixup_resume_early and pci_fixup_suspend, which matches current\ndevice core callbacks (.suspend/.resume_early).\n\nTBD: Somebody knows why we need quirk resume should double check if a\nquirk should be called in resume or resume_early. I changed some per my\nunderstanding, but can't make sure I fixed all."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:4daedcfe8c68",
+  "excerpt": "ahci: add pci quirk for JMB362",
+  "date": "2010-06-03",
+  "author": "Tejun Heo",
+  "trailers": {
+   "reported_by": [
+    "Aries Lee <arieslee@jmicron.com>"
+   ],
+   "cc_stable": [
+    "stable@kernel.org"
+   ]
+  },
+  "message": "ahci: add pci quirk for JMB362\n\nJMB362 is a new variant of jmicron controller which is similar to\nJMB360 but has two SATA ports instead of one.  As there is no PATA\nport, single function AHCI mode can be used as in JMB360.  Add pci\nquirk for JMB362."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:5b6ae5ba0c45",
+  "excerpt": "libata: more PCI IDs for jmicron controllers",
+  "date": "2010-07-30",
+  "author": "Tejun Heo",
+  "message": "libata: more PCI IDs for jmicron controllers\n\nAdd support for JMB364 and 369.\n\nPatch-originally-from: Aries Lee <arieslee@jmicron.com>"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:82e1719c4cd6",
+  "excerpt": "PCI: Clean up whitespace in quirks.c",
+  "date": "2018-05-02",
+  "author": "Bjorn Helgaas",
+  "cleanup": true,
+  "message": "PCI: Clean up whitespace in quirks.c\n\nClean up whitespace, capitalization, etc. in comments.  No functional\nchange intended."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:df561f6688fe",
+  "excerpt": "treewide: Use fallthrough pseudo-keyword",
+  "date": "2020-08-23",
+  "author": "Gustavo A. R. Silva",
+  "cleanup": true,
+  "message": "treewide: Use fallthrough pseudo-keyword\n\nReplace the existing /* fall through */ comments and its variants with\nthe new pseudo-keyword macro fallthrough[1]. Also, remove unnecessary\nfall-through markings when it is the case.\n\n[1] https://www.kernel.org/doc/html/v5.7/process/deprecated.html?highlight=fallthrough#implicit-switch-case-fall-through"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:83c088148c8e",
+  "excerpt": "PCI: Use PCI_HEADER_TYPE_* instead of literals",
+  "date": "2023-10-03",
+  "author": "Ilpo J\u00e4rvinen",
+  "cleanup": true,
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20231003125300.5541-4-ilpo.jarvinen@linux.intel.com"
+   ]
+  },
+  "message": "PCI: Use PCI_HEADER_TYPE_* instead of literals\n\nReplace literals under drivers/pci/ with PCI_HEADER_TYPE_MASK,\nPCI_HEADER_TYPE_NORMAL, and PCI_HEADER_TYPE_MFD.\n\nAlso replace !! boolean conversions with FIELD_GET()."
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20231003125300.5541-4-ilpo.jarvinen@linux.intel.com",
+  "excerpt": "(linked from commit 83c088148c8e; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

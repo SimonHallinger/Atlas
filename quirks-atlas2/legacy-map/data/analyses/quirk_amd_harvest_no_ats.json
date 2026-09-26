@@ -1,0 +1,163 @@
+{
+ "function": "quirk_amd_harvest_no_ats",
+ "one_line_intent": "Disable PCIe ATS (Address Translation Services) on AMD GPUs where 'harvested' silicon or old VBIOS makes ATS unsafe with the IOMMU.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Harvested (partly disabled) AMD GPUs need cache initialisation before ATS is enabled; the IOMMU enables ATS before the GPU driver loads, so the only safe option is to not use ATS.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:5e89cd303e3a",
+      "excerpt": "caches on some AMD GPUs must be initialized before ATS is enabled",
+      "verified": true
+     },
+     {
+      "type": "comment",
+      "ref": "quirks.c:L5656-L5658",
+      "excerpt": "ATS will be enabled before the driver has had a chance to load and configure the device.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "The very specific revision+subsystem check for device 0x15d8 (Raven iGPU) is intentional: only certain platforms showed errors, with no root cause.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:a2da5d8cc0b0",
+      "excerpt": "There is no root cause.  Turn off ATS on these systems to avoid the issue.",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L5663",
+      "excerpt": "if (pdev->revision == 0xcf &&",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "All Navi10/Navi14 boards lost ATS in 2022 - a deliberate trade of performance for stability after per-revision quirks kept missing units.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3f1271b54edc",
+      "excerpt": "The advantages of ATS are not worth it compared to the potential instabilities on harvested boards.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Depends on VBIOS version shipped on each board; some production boards shipped an old VBIOS lacking the init step.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:5e89cd303e3a",
+      "excerpt": "apparently some boards went to production with an older VBIOS that doesn't do it",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Hardware/firmware workaround; the Stoney case was exposed (not caused) by an IOMMU flush-queue change.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:9b44b0b09dec",
+      "excerpt": "Note that the commit in the Fixes tag is not buggy; it just uncovers the problem in the hardware by increasing the ATS flush rate.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Couples the GPU to the IOMMU subsystem: effect is consumed by the IOMMU driver when deciding whether to enable ATS.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L5668",
+      "excerpt": "quirk_no_ats(pdev);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "ATS behaviour on Windows was never validated by OEMs, so Linux cannot rely on vendor validation for this feature.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3f1271b54edc",
+      "excerpt": "Microsoft never productized ATS on Windows so OEM platforms that were Windows-only didn't always validate ATS.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Without it: IOMMU stalls, page faults and GPU hangs, sometimes 'system failure'.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:9b44b0b09dec",
+      "excerpt": "ATS is broken on this hardware and causes IOMMU stalls and system failure.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Four iterations (2020-2022) of adding one revision at a time before giving up and disabling the whole family - piecemeal quirking of a family bug does not converge.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3f1271b54edc",
+      "excerpt": "There are enough VBIOS escapes without the proper workaround that some users still hit this.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 11,
+  "verified": 11,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

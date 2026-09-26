@@ -1,0 +1,137 @@
+{
+ "function": "quirk_tigerpoint_bm_sts",
+ "one_line_intent": "Clear a stale BM_STS power-management status bit left by firmware on Intel NM10 'Tiger Point' so C4 idle doesn't hang.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Some HT machines hang entering C4 idle unless BM_STS is cleared first; acpi_idle clears it, intel_idle did not.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:4731fdcf6f7b",
+      "excerpt": "acpi_idle doesn't see this because it first checks and clears BM_STS",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Writes directly to an I/O port derived from config offset 0x40 (PMBASE).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L384",
+      "excerpt": "outw(0x10, pmbase);",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Depends on PMBASE layout of NM10 LPC; direct port I/O.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L380",
+      "excerpt": "pm1a = inw(pmbase);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Firmware bug (logged with FW_BUG prefix).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L383",
+      "excerpt": "pci_info(dev, FW_BUG \"Tiger Point LPC.BM_STS cleared\\n\");",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Hidden dependency on the idle driver choice (intel_idle vs acpi_idle).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:4731fdcf6f7b",
+      "excerpt": "it hits a boot hang in the intel_idle driver.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Removing it makes Lenovo Ideapad S10-3 hang at boot with HT.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:4731fdcf6f7b",
+      "excerpt": "When the Lenovo Ideapad S10-3 is booted with HT enabled",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "business",
+   "reasoning": {
+    "claim": "Boot hang on a netbook class.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:4731fdcf6f7b",
+      "excerpt": "boot hang",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Behaviour depended on an implicit side effect of another driver (acpi_idle clearing a bit).",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:4731fdcf6f7b",
+      "excerpt": "but it would hit the same hang if that check were disabled.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

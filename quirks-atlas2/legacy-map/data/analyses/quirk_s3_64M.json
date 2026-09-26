@@ -1,0 +1,137 @@
+{
+ "function": "quirk_s3_64M",
+ "one_line_intent": "Correct the BAR0 size of S3 868/968 graphics chips, which report 32 MB but decode 64 MB.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Chip reports region size 32M but decodes 64M; region is re-allocated if misaligned.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L590-L591",
+      "excerpt": "S3 868 and 968 chips report region size equal to 32M, but they decode 64M.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Marks resource UNSET to force reassignment.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L598",
+      "excerpt": "r->flags |= IORESOURCE_UNSET;",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "1990s S3 graphics hardware.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L602",
+      "excerpt": "DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_S3,\tPCI_DEVICE_ID_S3_868,\tquirk_s3_64M);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Silicon bug in BAR sizing.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L590-L591",
+      "excerpt": "they decode 64M",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Affects resource allocation for the whole bus (address space conflicts).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L599",
+      "excerpt": "resource_set_range(r, 0, SZ_64M);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Recent refactors (2024) touched this 1990s quirk without hardware to test on.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:9d3faf229c06",
+      "excerpt": "Use IS_ALIGNED(), resource_size(), and SZ_* defines in quirk_s3_64M().",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "low",
+   "category": "business",
+   "reasoning": {
+    "claim": "Obsolete hardware.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L590",
+      "excerpt": "S3 868 and 968 chips",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Pre-git origin; later changes are mechanical cleanups - a pattern where untestable code is refactored with 'no functional change' assumed.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:783602c920e9",
+      "excerpt": "Convert open-coded resource size calculations to use resource_set_{range,size}() helpers.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 8,
+  "verified": 8,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

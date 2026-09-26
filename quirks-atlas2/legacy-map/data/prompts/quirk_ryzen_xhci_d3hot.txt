@@ -1,0 +1,211 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_ryzen_xhci_d3hot",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 2080,
+  "end": 2083
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x15e0",
+   "class": null,
+   "line": 2084,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x15e1",
+   "class": null,
+   "line": 2085,
+   "via_macro": null
+  },
+  {
+   "macro": "DECLARE_PCI_FIXUP_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_AMD",
+   "device": "0x1639",
+   "class": null,
+   "line": 2086,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 3,
+ "calls_local": [
+  "quirk_d3hot_delay"
+ ],
+ "calls_external": [],
+ "called_by": [],
+ "config_access": [],
+ "delays": [],
+ "timing": [
+  {
+   "kind": "timeout_or_delay_api",
+   "target": "quirk_d3hot_delay",
+   "value": "dev, 20",
+   "line": 2082
+  }
+ ],
+ "io": [],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 2,
+  "first": "2019-11-27",
+  "last": "2021-07-21",
+  "origin_pre_git": false,
+  "n_stable": 1,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+2080: static void quirk_ryzen_xhci_d3hot(struct pci_dev *dev)
+2081: {
+2082: 	quirk_d3hot_delay(dev, 20);
+2083: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L2071-L2079",
+  "excerpt": "Ryzen5/7 XHCI controllers fail upon resume from runtime suspend or s2idle.\nhttps://bugzilla.kernel.org/show_bug.cgi?id=205587\n\nThe kernel attempts to transition these devices to D3cold, but that seems\nto be ineffective on the platforms in question; the PCI device appears to\nremain on in D3hot state. The D3hot-to-D0 transition then requires an\nextended delay in order to succeed.",
+  "role": "doc"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2082",
+  "excerpt": "quirk_d3hot_delay(dev, 20);",
+  "role": "timing"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2084",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_AMD, 0x15e0, quirk_ryzen_xhci_d3hot);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2085",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_AMD, 0x15e1, quirk_ryzen_xhci_d3hot);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2086",
+  "excerpt": "DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_AMD, 0x1639, quirk_ryzen_xhci_d3hot);",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:3030df209aa8",
+  "excerpt": "PCI: Increase D3 delay for AMD Ryzen5/7 XHCI controllers",
+  "date": "2019-11-27",
+  "author": "Daniel Drake",
+  "trailers": {
+   "links": [
+    "http://lkml.kernel.org/r/CAD8Lp47Vh69gQjROYG69=waJgL7hs1PwnLonL9+27S_TcRhixA@mail.gmail.com",
+    "https://lore.kernel.org/r/20191127053836.31624-2-drake@endlessm.com"
+   ],
+   "bug_refs": [
+    "https://bugzilla.kernel.org/show_bug.cgi?id=205587"
+   ]
+  },
+  "message": "PCI: Increase D3 delay for AMD Ryzen5/7 XHCI controllers\n\nOn Asus UX434DA (AMD Ryzen7 3700U) and Asus X512DK (AMD Ryzen5 3500U), the\nXHCI controller fails to resume from runtime suspend or s2idle, and USB\nbecomes unusable from that point.\n\n  xhci_hcd 0000:03:00.4: Refused to change power state, currently in D3\n  xhci_hcd 0000:03:00.4: enabling device (0000 -> 0002)\n  xhci_hcd 0000:03:00.4: WARN: xHC restore state timeout\n  xhci_hcd 0000:03:00.4: PCI post-resume error -110!\n  xhci_hcd 0000:03:00.4: HC died; cleaning up\n\nDuring suspend, a transition to D3cold is attempted, however the affected\nplatforms do not seem to cut the power to the PCI device when in this\nstate, so the device stays in D3hot.\n\nUpon resume, the D3hot-to-D0 transition is successful only if the D3 delay\nis increased to 20ms. The transition failure does not appear to be\ndetectable as a CRS condition. Add a PCI quirk to increase the delay on the\naffected hardware."
+ },
+ {
+  "type": "discussion",
+  "ref": "http://lkml.kernel.org/r/CAD8Lp47Vh69gQjROYG69=waJgL7hs1PwnLonL9+27S_TcRhixA@mail.gmail.com",
+  "excerpt": "(linked from commit 3030df209aa8; thread not retrieved)"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20191127053836.31624-2-drake@endlessm.com",
+  "excerpt": "(linked from commit 3030df209aa8; thread not retrieved)"
+ },
+ {
+  "type": "bug_report",
+  "ref": "https://bugzilla.kernel.org/show_bug.cgi?id=205587",
+  "excerpt": "(bug tracker entry referenced by commit 3030df209aa8)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e0bff4322092",
+  "excerpt": "PCI: Increase D3 delay for AMD Renoir/Cezanne XHCI",
+  "date": "2021-07-21",
+  "author": "Marcin Bachry",
+  "trailers": {
+   "links": [
+    "https://lore.kernel.org/r/20210722025858.220064-1-alexander.deucher@amd.com"
+   ],
+   "cc_stable": [
+    "stable@vger.kernel.org"
+   ]
+  },
+  "message": "PCI: Increase D3 delay for AMD Renoir/Cezanne XHCI\n\nThe Renoir XHCI controller apparently doesn't resume reliably with the\nstandard D3hot-to-D0 delay.  Increase it to 20ms.\n\n[Alex: I talked to the AMD USB hardware team and the AMD Windows team and\nthey are not aware of any HW errata or specific issues.  The HW works fine\nin Windows.  I was told Windows uses a rather generous default delay of\n100ms for PCI state transitions.]"
+ },
+ {
+  "type": "discussion",
+  "ref": "https://lore.kernel.org/r/20210722025858.220064-1-alexander.deucher@amd.com",
+  "excerpt": "(linked from commit e0bff4322092; thread not retrieved)"
+ }
+]
+
+Produce the JSON analysis now.

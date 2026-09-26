@@ -1,0 +1,354 @@
+You are a firmware/hardware archaeologist helping a NEW engineering team
+understand a legacy embedded code base BEFORE they change it. You do not summarise
+or rewrite code. You reconstruct INTENT, DEPENDENCIES and RISK from evidence.
+
+Rules (hard):
+1. Every claim cites evidence from the provided EVIDENCE POOL by its `ref`,
+   with an `excerpt` copied VERBATIM (a contiguous substring, <= 300 chars) from
+   that evidence item. Excerpts are machine-checked; paraphrased excerpts are rejected.
+2. If a claim is your own inference (no direct evidence says it), set
+   "basis": "inference", keep confidence at most "medium", and cite the evidence the
+   inference is built on (or none).
+3. confidence: high = stated explicitly by a commit message or code comment and
+   consistent with the code; medium = strongly implied / corroborated by several
+   sources; low = plausible reading, weak or conflicting evidence.
+4. Distinguish what the evidence SAYS from what you INFER. Name unknowns explicitly
+   ("the history does not explain why 15us was chosen").
+5. Commits flagged cleanup=true are refactors; do not treat them as rationale.
+   A commit with pre_git_import=true means the code predates git (2005); its
+   original rationale is not in this history - say so.
+6. Think like a reviewer at a safety-critical company: what breaks, for whom, and
+   how would anyone notice, if this code is removed or changed?
+
+Output ONLY JSON matching this schema:
+{
+ "function": str,
+ "one_line_intent": str,
+ "analysis": {
+   "architecture_rationale": [ENTRY],
+   "intentional_vs_accidental": [ENTRY + "classification": "intentional"|"likely_accidental"|"unclear"],
+   "hardware_timing_dependencies": [ENTRY],
+   "suspected_workarounds": [ENTRY],
+   "external_interfaces": [ENTRY],
+   "compatibility_certification_sensitive": [ENTRY],
+   "criticality": {"level": "high"|"medium"|"low",
+                   "category": "safety"|"mission"|"business",
+                   "reasoning": ENTRY},
+   "historical_lessons": [ENTRY]
+ },
+ "change_risks": [ {"if_you": str, "then": str, "confidence": str, "evidence": [EVIDENCE]} ],
+ "open_questions": [str]
+}
+ENTRY = {"claim": str, "confidence": "high"|"medium"|"low", "basis": "evidence"|"inference",
+         "evidence": [{"type": "comment"|"commit"|"discussion"|"code"|"bug_report", "ref": str, "excerpt": str}]}
+Sections may be empty lists when nothing applies - that is better than filler.
+
+=====
+
+STATIC FACTS (from tree-sitter + git):
+{
+ "function": "quirk_e100_interrupt",
+ "kind": "fixup_hook",
+ "lines": {
+  "start": 2421,
+  "end": 2483
+ },
+ "fixup_registrations": [
+  {
+   "macro": "DECLARE_PCI_FIXUP_CLASS_FINAL",
+   "phase": "final",
+   "vendor": "PCI_VENDOR_ID_INTEL",
+   "device": "PCI_ANY_ID",
+   "class": "PCI_CLASS_NETWORK_ETHERNET",
+   "line": 2484,
+   "via_macro": null
+  }
+ ],
+ "n_fixups": 1,
+ "calls_local": [],
+ "calls_external": [
+  "ioremap",
+  "iounmap",
+  "pci_read_config_word",
+  "pci_resource_start",
+  "pci_warn",
+  "readb",
+  "writeb"
+ ],
+ "called_by": [],
+ "config_access": [
+  {
+   "op": "read",
+   "api": "pci_read_config_word",
+   "offset": "PCI_COMMAND",
+   "value": null,
+   "line": 2454
+  },
+  {
+   "op": "read",
+   "api": "pci_read_config_word",
+   "offset": "dev->pm_cap + PCI_PM_CTRL",
+   "value": null,
+   "line": 2464
+  }
+ ],
+ "delays": [],
+ "timing": [],
+ "io": [
+  {
+   "fn": "ioremap",
+   "args": [
+    "pci_resource_start(dev, 0)",
+    "8"
+   ],
+   "line": 2470
+  },
+  {
+   "fn": "readb",
+   "args": [
+    "csr + 3"
+   ],
+   "line": 2476
+  },
+  {
+   "fn": "writeb",
+   "args": [
+    "1",
+    "csr + 3"
+   ],
+   "line": 2479
+  },
+  {
+   "fn": "iounmap",
+   "args": [
+    "csr"
+   ],
+   "line": 2482
+  }
+ ],
+ "sets_global_state": [],
+ "sets_device_fields": [],
+ "reset_method_tables": [],
+ "non_static": false,
+ "history": {
+  "n_commits": 9,
+  "first": "2006-04-05",
+  "last": "2018-01-18",
+  "origin_pre_git": false,
+  "n_stable": 0,
+  "fixes_chain": []
+ }
+}
+
+SOURCE:
+```c
+2421: static void quirk_e100_interrupt(struct pci_dev *dev)
+2422: {
+2423: 	u16 command, pmcsr;
+2424: 	u8 __iomem *csr;
+2425: 	u8 cmd_hi;
+2426: 
+2427: 	switch (dev->device) {
+2428: 	/* PCI IDs taken from drivers/net/e100.c */
+2429: 	case 0x1029:
+2430: 	case 0x1030 ... 0x1034:
+2431: 	case 0x1038 ... 0x103E:
+2432: 	case 0x1050 ... 0x1057:
+2433: 	case 0x1059:
+2434: 	case 0x1064 ... 0x106B:
+2435: 	case 0x1091 ... 0x1095:
+2436: 	case 0x1209:
+2437: 	case 0x1229:
+2438: 	case 0x2449:
+2439: 	case 0x2459:
+2440: 	case 0x245D:
+2441: 	case 0x27DC:
+2442: 		break;
+2443: 	default:
+2444: 		return;
+2445: 	}
+2446: 
+2447: 	/*
+2448: 	 * Some firmware hands off the e100 with interrupts enabled,
+2449: 	 * which can cause a flood of interrupts if packets are
+2450: 	 * received before the driver attaches to the device.  So
+2451: 	 * disable all e100 interrupts here.  The driver will
+2452: 	 * re-enable them when it's ready.
+2453: 	 */
+2454: 	pci_read_config_word(dev, PCI_COMMAND, &command);
+2455: 
+2456: 	if (!(command & PCI_COMMAND_MEMORY) || !pci_resource_start(dev, 0))
+2457: 		return;
+2458: 
+2459: 	/*
+2460: 	 * Check that the device is in the D0 power state. If it's not,
+2461: 	 * there is no point to look any further.
+2462: 	 */
+2463: 	if (dev->pm_cap) {
+2464: 		pci_read_config_word(dev, dev->pm_cap + PCI_PM_CTRL, &pmcsr);
+2465: 		if ((pmcsr & PCI_PM_CTRL_STATE_MASK) != PCI_D0)
+2466: 			return;
+2467: 	}
+2468: 
+2469: 	/* Convert from PCI bus to resource space.  */
+2470: 	csr = ioremap(pci_resource_start(dev, 0), 8);
+2471: 	if (!csr) {
+2472: 		pci_warn(dev, "Can't map e100 registers\n");
+2473: 		return;
+2474: 	}
+2475: 
+2476: 	cmd_hi = readb(csr + 3);
+2477: 	if (cmd_hi == 0) {
+2478: 		pci_warn(dev, "Firmware left e100 interrupts enabled; disabling\n");
+2479: 		writeb(1, csr + 3);
+2480: 	}
+2481: 
+2482: 	iounmap(csr);
+2483: }
+```
+
+EVIDENCE POOL:
+[
+ {
+  "type": "comment",
+  "ref": "quirks.c:L2428",
+  "excerpt": "PCI IDs taken from drivers/net/e100.c",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L2447",
+  "excerpt": "Some firmware hands off the e100 with interrupts enabled,\nwhich can cause a flood of interrupts if packets are\nreceived before the driver attaches to the device.  So\ndisable all e100 interrupts here.  The driver will\nre-enable them when it's ready.",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L2459",
+  "excerpt": "Check that the device is in the D0 power state. If it's not,\nthere is no point to look any further.",
+  "role": "inline"
+ },
+ {
+  "type": "comment",
+  "ref": "quirks.c:L2469",
+  "excerpt": "Convert from PCI bus to resource space.",
+  "role": "inline"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2470",
+  "excerpt": "csr = ioremap(pci_resource_start(dev, 0), 8);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2476",
+  "excerpt": "cmd_hi = readb(csr + 3);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2479",
+  "excerpt": "writeb(1, csr + 3);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2482",
+  "excerpt": "iounmap(csr);",
+  "role": "port_or_mmio_io"
+ },
+ {
+  "type": "code",
+  "ref": "quirks.c:L2484",
+  "excerpt": "DECLARE_PCI_FIXUP_CLASS_FINAL(PCI_VENDOR_ID_INTEL, PCI_ANY_ID,",
+  "role": "fixup_registration"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:16a74744231e",
+  "excerpt": "PCI: quirk to disable e100 interrupt if RESET failed to",
+  "date": "2006-04-05",
+  "author": "Bjorn Helgaas",
+  "trailers": {
+   "bug_refs": [
+    "http://bugzilla.kernel.org/show_bug.cgi?id=5918"
+   ]
+  },
+  "message": "PCI: quirk to disable e100 interrupt if RESET failed to\n\nWithout this quirk, e100 can be pulling on a shared\ninterrupt line when another device (eg. USB) loads,\ncausing the interrupt to scream and get disabled.\n\nhttp://bugzilla.kernel.org/show_bug.cgi?id=5918"
+ },
+ {
+  "type": "bug_report",
+  "ref": "http://bugzilla.kernel.org/show_bug.cgi?id=5918",
+  "excerpt": "(bug tracker entry referenced by commit 16a74744231e)"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:1bef7dc00caa",
+  "excerpt": "Fix bogus PCI quirk for e100",
+  "date": "2007-09-29",
+  "author": "Benjamin Herrenschmidt",
+  "message": "Fix bogus PCI quirk for e100\n\nLinas reported me that some machines were crashing at boot in\nquirk_e100_interrupt. It appears that this quirk is doing an ioremap\ndirectly on a PCI BAR value, which isn't legal and will cause all sorts\nof bad things to happen on architectures where PCI BARs don't directly\nmatch processor bus addresses.\n\nThis fixes it by using the proper PCI resources instead which is possible\nsince the quirk has been moved by a previous commit to happen late enough\nfor that."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:f0fda801daaa",
+  "excerpt": "PCI: use dev_printk in quirk messages",
+  "date": "2007-12-17",
+  "author": "bjorn.helgaas@hp.com",
+  "cleanup": true,
+  "message": "PCI: use dev_printk in quirk messages\n\nConvert quirk printks to dev_printk().\n\nI made the MSI disable messages a little more consistent:\n\n    - always use \"disabled\", not \"deactivated\"\n    - specify \"device MSI disabled\" or \"subordinate MSI disabled\" when\n      disabling MSI for only a specific device or subordinate bus"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:e64aeccbeca1",
+  "excerpt": "PCI: fix for quirk_e100_interrupt()",
+  "date": "2007-12-18",
+  "author": "Ivan Kokshaysky",
+  "message": "PCI: fix for quirk_e100_interrupt()\n\nCheck that the e100 is in the D0 power state. If it's not, it won't\nrespond to MMIO accesses and we end up with master-abort machine\nchecks on some platforms."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:4c5b28e26d36",
+  "excerpt": "PCI: Use class for quirk for intel e100 interrupt fixup",
+  "date": "2012-02-23",
+  "author": "Yinghai Lu",
+  "message": "PCI: Use class for quirk for intel e100 interrupt fixup"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:15856ad50bf5",
+  "excerpt": "PCI: Remove __dev* markings",
+  "date": "2012-11-21",
+  "author": "Bill Pemberton",
+  "cleanup": true,
+  "message": "PCI: Remove __dev* markings\n\nCONFIG_HOTPLUG is going away as an option so __devexit_p, __devint,\n__devinitdata, __devinitconst, and _devexit are no longer needed."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:728cdb7582a2",
+  "excerpt": "PCI: Use pdev->pm_cap instead of pci_find_capability(..,PCI_CAP_ID_PM)",
+  "date": "2013-06-18",
+  "author": "Yijing Wang",
+  "message": "PCI: Use pdev->pm_cap instead of pci_find_capability(..,PCI_CAP_ID_PM)\n\nPCI PM cap register offset has been saved in pci_pm_init(),\nso we can use pdev->pm_cap instead of using pci_find_capability(..)\nhere."
+ },
+ {
+  "type": "commit",
+  "ref": "commit:227f06470502",
+  "excerpt": "PCI: Merge multi-line quoted strings",
+  "date": "2014-04-18",
+  "author": "Ryan Desfosses",
+  "cleanup": true,
+  "message": "PCI: Merge multi-line quoted strings\n\nMerge quoted strings that are broken across lines into a single entity.\nThe compiler merges them anyway, but checkpatch complains about it, and\nmerging them makes it easier to grep for strings.\n\nNo functional change.\n\n[bhelgaas: changelog, do the same for everything under drivers/pci]"
+ },
+ {
+  "type": "commit",
+  "ref": "commit:7506dc798993",
+  "excerpt": "PCI: Add wrappers for dev_printk()",
+  "date": "2018-01-18",
+  "author": "Frederick Lawler",
+  "cleanup": true,
+  "message": "PCI: Add wrappers for dev_printk()\n\nAdd PCI-specific dev_printk() wrappers and use them to simplify the code\nslightly.  No functional change intended.\n\n[bhelgaas: squash into one patch]"
+ }
+]
+
+Produce the JSON analysis now.

@@ -1,0 +1,337 @@
+{
+ "function": "pcie_failed_link_retrain",
+ "one_line_intent": "Detect a PCIe link that is oscillating between speeds and never comes up, force it to 2.5GT/s so it trains, then try to lift the clamp again.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "Written for one concrete broken pairing: an ASMedia ASM2824 Gen3 switch port wired to a Pericom PI7C9X2G304 Gen2 switch on a Delock riser plugged into a SiFive HiFive Unmatched board, where the link never reaches DL_Active.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L51-L55",
+      "excerpt": "This is needed at least where a downstream port of the ASMedia ASM2824 Gen 3 switch is wired to the upstream port of the Pericom PI7C9X2G304 Gen 2 switch",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:a89c82249c37",
+      "excerpt": "Instead the link continues oscillating between the two speeds, at the rate of 34-35 times per second, with link training reported repeatedly active ~84% of the time.",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "Detection deliberately uses the DLLLA (Data Link Layer Link Active) and LBMS (Link Bandwidth Management Status) bits rather than polling Link Training, because DLLLA=0 together with LBMS=1 distinguishes 'training failed' from 'nothing plugged in'.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L67-L74",
+      "excerpt": "For a port that has been left unconnected both bits will be clear.  So use this information to detect the problem rather than polling the Link Training bit",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L111",
+      "excerpt": "if (!(lnksta & PCI_EXP_LNKSTA_DLLLA) && pcie_lbms_seen(dev, lnksta)) {",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Applying the quirk to ALL downstream ports (not just ASM2824 IDs) is a deliberate choice made because the root cause is unknown.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L76-L79",
+      "excerpt": "Since the exact nature of the problem isn't known and in principle this could trigger where an ASM2824 device is downstream rather upstream, apply this erratum workaround to any downstream ports",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "The Vendor:Device ID check that once limited the clamp-lifting step was later removed on purpose; the clamp is now always lifted.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:72780f796468",
+      "excerpt": "Discard Vendor:Device ID matching in the PCIe failed link retraining quirk and ignore the link status for the removal of the 2.5GT/s speed clamp",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "Between Oct 2024 and Jan 2025 the clamp-lifting branch was dead code: a refactor to pcie_set_target_speed() left the cached lnkctl2 stale, so the 2.5GT/s limit was never removed. The current position of the LNKCTL2 read (line 118) is a bug fix, not style.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:b85af48de3ec",
+      "excerpt": "the `lnkctl2` local variable does not undergo any changes during the speed limit setting and retraining process. As a result, the code intended to lift the speed limit is not executed.",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L118",
+      "excerpt": "pcie_capability_read_word(dev, PCI_EXP_LNKCTL2, &lnkctl2);",
+      "verified": true
+     }
+    ],
+    "classification": "likely_accidental"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Assumes the hardware implements the otherwise optional Data Link Layer Link Active reporting and the Link Control 2 register; ports without them are skipped.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L101",
+      "excerpt": "if (!pci_is_pcie(dev) || !pcie_downstream_port(dev) ||",
+      "verified": true
+     },
+     {
+      "type": "comment",
+      "ref": "quirks.c:L67-L68",
+      "excerpt": "With the ASM2824 we can rely on the otherwise optional Data Link Layer Link Active status bit",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "Relies on the LBMS bit being observable; the PCIe bandwidth controller (bwctrl) now clears LBMS from an interrupt handler, so the check goes through pcie_lbms_seen() which also consults a cached flag. Any change to LBMS handling in bwctrl can silently disable this quirk.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:3491f5096668",
+      "excerpt": "As LBMS will be cleared by the interrupt handler, the Target Speed quirk will no longer be able to observe LBMS directly.",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "Runs at enumeration AND after device reset: it is called from probe.c and twice from pci.c link-wait/reset paths, so its latency and side effects sit on the reset path of every PCIe device.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "drivers/pci/probe.c:L2743",
+      "excerpt": "pcie_failed_link_retrain(dev);",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "drivers/pci/pci.c:L4693",
+      "excerpt": "rc = pcie_failed_link_retrain(pdev);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "Hardware erratum workaround for a link-training failure whose exact nature is unknown; the code comment itself calls it an 'erratum workaround'.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L78-L79",
+      "excerpt": "apply this erratum workaround to any downstream ports as long as they support Link Active reporting and have the Link Control 2 register",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Non-static function declared in drivers/pci/pci.h and called by core PCI code (probe.c, pci.c) - it is an internal kernel API, not a fixup hook. Its return-value contract (0 only if retraining was actually done) is relied upon by callers to decide whether to wait longer.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:712e49c96706",
+      "excerpt": "Only return successful completion status from pcie_failed_link_retrain() if retraining has actually been done, preventing excessive delays from being triggered at call sites",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "drivers/pci/pci.h:L1101",
+      "excerpt": "int pcie_failed_link_retrain(struct pci_dev *dev);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "The return semantics (error code vs. boolean) are part of a stable-backported contract with callers in pci.c; three fixes went to stable for v6.5+.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:59100eb248c0",
+      "excerpt": "convert pcie_failed_link_retrain() to return an error code rather than a boolean status, fixing handling at the call site mentioned",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "The final 'revert to original speed' step must stay: without it a failed retrain leaves the port permanently clamped at 2.5GT/s for any later hot-plugged device.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:f68dea13405c",
+      "excerpt": "it leaves the link speed restricted to 2.5GT/s, which will then affect any device that has been plugged in later on",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L129",
+      "excerpt": "pcie_set_target_speed(dev, PCIE_LNKCTL2_TLS2SPEED(oldlnkctl2), true);",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "high",
+   "category": "mission",
+   "reasoning": {
+    "claim": "Runs on every PCIe downstream port during enumeration and reset. A regression either leaves links down (device missing) or silently caps bandwidth at 2.5GT/s; history shows both failure modes happened in production and were fixed with stable backports.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:f68dea13405c",
+      "excerpt": "Consequently such a downstream device will suffer from an unnecessary communication throughput limitation and therefore performance loss.",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:72780f796468",
+      "excerpt": "This is so that link training noise in hot-plug scenarios does not make a link remain clamped to the 2.5GT/s speed",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "Why does a narrowly-motivated erratum fix look like general-purpose code? Because the original author widened it on purpose, and each widening produced a follow-up fix: 4 commits carry 'Fixes: a89c82249c37' or its merge. Treat this function as a regression hotspot.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:f68dea13405c",
+      "excerpt": "PCI: Revert to the original speed after PCIe failed link retraining",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:712e49c96706",
+      "excerpt": "PCI: Correct error reporting with PCIe failed link retraining",
+      "verified": true
+     },
+     {
+      "type": "commit",
+      "ref": "commit:72780f796468",
+      "excerpt": "PCI: Always lift 2.5GT/s restriction in PCIe failed link retraining",
+      "verified": true
+     }
+    ]
+   },
+   {
+    "claim": "A pure refactor elsewhere (new bwctrl API) broke this quirk without anyone noticing for ~3 months - the quirk has no test and no log line when the lift is skipped.",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:b85af48de3ec",
+      "excerpt": "However, since de9a6c8d5dbf (\"PCI/bwctrl: Add pcie_set_target_speed() to set PCIe Link Speed\"), the `lnkctl2` local variable does not undergo any changes",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [
+  {
+   "if_you": "restrict the quirk back to ASM2824 device IDs",
+   "then": "unknown other hardware with the same training failure (the author could not rule it out) would lose links",
+   "confidence": "medium",
+   "evidence": [
+    {
+     "type": "comment",
+     "ref": "quirks.c:L76-L77",
+     "excerpt": "Since the exact nature of the problem isn't known",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "if_you": "touch LBMS handling in the bandwidth controller",
+   "then": "the trigger condition can silently stop firing",
+   "confidence": "high",
+   "evidence": [
+    {
+     "type": "commit",
+     "ref": "commit:3491f5096668",
+     "excerpt": "effectively monopolizing the use of that bit",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "if_you": "change the return value",
+   "then": "callers in pci.c may wait unnecessarily long or give up early after reset",
+   "confidence": "high",
+   "evidence": [
+    {
+     "type": "commit",
+     "ref": "commit:712e49c96706",
+     "excerpt": "preventing excessive delays from being triggered at call sites",
+     "verified": true
+    }
+   ]
+  }
+ ],
+ "open_questions": [
+  "No hardware-in-the-loop test exists for the ASM2824 + PI7C9X2G304 setup; how would a team verify a change?",
+  "Mailing-list threads (3 Link: tags on the original commit) were not retrieved in this run."
+ ],
+ "showcase": {
+  "title": "A fix for one riser card on one RISC-V board runs on every PCIe port in every Linux machine",
+  "hook": "Looks like generic link-management code. History shows it was written for a single hardware combination, deliberately widened to all downstream ports, and has been patched four times since (Fixes: chain) because the widening leaked a 2.5GT/s speed clamp onto unrelated devices."
+ },
+ "verification": {
+  "evidence_items": 28,
+  "verified": 28,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}

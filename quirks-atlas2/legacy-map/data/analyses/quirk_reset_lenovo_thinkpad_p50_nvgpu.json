@@ -1,0 +1,157 @@
+{
+ "function": "quirk_reset_lenovo_thinkpad_p50_nvgpu",
+ "one_line_intent": "On ThinkPad P50 with Quadro M1000M in hybrid mode, detect a GPU left initialised by the previous boot and bus-reset it.",
+ "generated_by": "claude-opus-5-5 (in-session, same prompt contract as reason.py)",
+ "analysis": {
+  "architecture_rationale": [
+   {
+    "claim": "BIOS does not always reset the secondary GPU between reboots in hybrid mode; leftover state produces spurious interrupts that disable the wrong IRQ (breaking the touchpad) and break nouveau.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L6114-L6121",
+      "excerpt": "causes spurious interrupts from the GPU, which in turn causes us to disable the wrong IRQ and end up breaking the touchpad.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "intentional_vs_accidental": [
+   {
+    "claim": "Reads MMIO 0x2240c bit 1 as a 'GPU was POSTed' signal, copied from nouveau.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L6143-L6146",
+      "excerpt": "Based on nvkm_device_ctor()",
+      "verified": true
+     },
+     {
+      "type": "code",
+      "ref": "quirks.c:L6157",
+      "excerpt": "if (ioread32(map + 0x2240c) & 0x2) {",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   },
+   {
+    "claim": "pci_reset_bus() instead of a function reset is deliberate since the HDA function shares the bus.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:ad54567ad5d8",
+      "excerpt": "there are now two functions (the HDA controller and the GPU itself) on the bus, so the reset fails.",
+      "verified": true
+     }
+    ],
+    "classification": "intentional"
+   }
+  ],
+  "hardware_timing_dependencies": [
+   {
+    "claim": "Assumes undocumented NVIDIA register layout (BAR0 offset 0x2240c).",
+    "confidence": "medium",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "code",
+      "ref": "quirks.c:L6157",
+      "excerpt": "if (ioread32(map + 0x2240c) & 0x2) {",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "suspected_workarounds": [
+   {
+    "claim": "BIOS defect workaround with root cause unknown.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:e0547c81bfcf",
+      "excerpt": "The reason is unknown",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "external_interfaces": [
+   {
+    "claim": "Interacts with the HDA controller quirk (quirk_nvidia_hda): enabling the HDA function changed this quirk's reset method.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:ad54567ad5d8",
+      "excerpt": "After b516ea586d71 (\"PCI: Enable NVIDIA HDA controllers\")",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "compatibility_certification_sensitive": [
+   {
+    "claim": "Gated on subsystem 0x222e and on reset support; also skips Dedicated mode where GPU advertises NoReset+.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L6126-L6128",
+      "excerpt": "the GPU advertises NoReset+ when in this mode, so we can detect that and avoid resetting it.",
+      "verified": true
+     }
+    ]
+   }
+  ],
+  "criticality": {
+   "level": "medium",
+   "category": "business",
+   "reasoning": {
+    "claim": "Single laptop SKU; failure is loss of input device and graphics driver.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "comment",
+      "ref": "quirks.c:L6120-L6121",
+      "excerpt": "this also completely breaks nouveau.",
+      "verified": true
+     }
+    ]
+   }
+  },
+  "historical_lessons": [
+   {
+    "claim": "An unrelated quirk that exposed a second PCI function silently broke this one (reset failed) - quirks interact through bus topology.",
+    "confidence": "high",
+    "basis": "evidence",
+    "evidence": [
+     {
+      "type": "commit",
+      "ref": "commit:ad54567ad5d8",
+      "excerpt": "It previously used pci_reset_function(), and the available method was a bus reset, which was fine because there was only one function on the bus.",
+      "verified": true
+     }
+    ]
+   }
+  ]
+ },
+ "change_risks": [],
+ "open_questions": [],
+ "verification": {
+  "evidence_items": 10,
+  "verified": 10,
+  "validator": "validate.py: verbatim excerpt match against git history + source"
+ }
+}
